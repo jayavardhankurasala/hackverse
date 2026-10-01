@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { Star, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { submitRequestRating } from '@/actions/ratings'
+import { GlassCard } from '@/components/ui/GlassCard'
 
 interface RatingCardProps {
   requestId: string
@@ -51,108 +52,114 @@ export function RatingCard({
   // Already submitted view
   if (submitted) {
     return (
-      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-5 shadow-xs">
-        <div className="flex items-center space-x-2 text-emerald-900 font-bold text-sm mb-1.5">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+      <GlassCard glow="emerald" className="p-5">
+        <div className="flex items-center space-x-2 text-emerald-300 font-bold text-sm mb-1.5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>Your Service Resolution Feedback</span>
         </div>
-        <div className="flex items-center space-x-1 my-2">
+        <div className="flex items-center space-x-1.5 my-2">
           {[1, 2, 3, 4, 5].map((s) => (
             <Star
               key={s}
               className={`w-5 h-5 ${
                 s <= (existingRating?.rating || stars)
-                  ? 'text-amber-400 fill-amber-400'
-                  : 'text-gray-300'
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-slate-700'
               }`}
             />
           ))}
-          <span className="text-xs font-bold text-gray-700 ml-2">
-            {existingRating?.rating || stars} of 5 Stars
+          <span className="text-xs font-semibold text-slate-300 ml-2">
+            ({existingRating?.rating || stars} / 5 Stars)
           </span>
         </div>
         {(existingRating?.feedback || feedback) && (
-          <p className="text-xs text-gray-700 italic mt-1 bg-white p-3 rounded-lg border border-emerald-100">
-            &ldquo;{existingRating?.feedback || feedback}&rdquo;
+          <p className="text-xs text-slate-300 mt-2 italic bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+            "{existingRating?.feedback || feedback}"
           </p>
         )}
-      </div>
+      </GlassCard>
     )
   }
 
   return (
-    <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-5 shadow-xs space-y-3">
+    <GlassCard glow="blue" className="p-5 space-y-4">
       <div>
-        <h3 className="text-sm font-bold text-gray-900">
-          Rate the Resolution Experience
+        <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+          <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <span>Rate Service Quality</span>
         </h3>
-        <p className="text-xs text-gray-600 mt-0.5">
-          Your feedback helps us maintain campus quality standards and evaluate staff performance.
+        <p className="text-xs text-slate-400 mt-0.5">
+          This ticket has been marked as resolved. How satisfied are you with the technician's resolution?
         </p>
       </div>
 
       {error && (
-        <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center space-x-1.5">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+        <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Star Selector */}
-        <div className="flex items-center space-x-1.5">
-          {[1, 2, 3, 4, 5].map((starVal) => {
-            const isFilled = (hoverStars || stars) >= starVal
-            return (
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            Rating <span className="text-rose-400">*</span>
+          </label>
+          <div className="flex items-center space-x-1.5">
+            {[1, 2, 3, 4, 5].map((s) => (
               <button
-                key={starVal}
+                key={s}
                 type="button"
-                onMouseEnter={() => setHoverStars(starVal)}
+                onMouseEnter={() => setHoverStars(s)}
                 onMouseLeave={() => setHoverStars(0)}
-                onClick={() => setStars(starVal)}
-                className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                onClick={() => setStars(s)}
+                className="p-1 rounded-lg hover:scale-110 transition-transform focus:outline-none"
               >
                 <Star
                   className={`w-6 h-6 transition-colors ${
-                    isFilled ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                    s <= (hoverStars || stars)
+                      ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                      : 'text-slate-700'
                   }`}
                 />
               </button>
-            )
-          })}
-          <span className="text-xs font-semibold text-gray-600 ml-2">
-            {stars > 0 ? `${stars} of 5 Stars` : 'Click to rate'}
-          </span>
+            ))}
+            <span className="text-xs font-semibold text-slate-300 ml-2">
+              {stars > 0 ? `${stars} of 5 stars` : 'Select rating'}
+            </span>
+          </div>
         </div>
 
-        {/* Optional Feedback */}
+        {/* Feedback text */}
         <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            Feedback Note <span className="text-slate-500 font-normal">(Optional)</span>
+          </label>
           <textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             rows={2}
-            placeholder="Additional comments or notes about the service (optional)..."
-            className="w-full px-3 py-2 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-300 transition"
+            placeholder="Share feedback on technician response time, politeness, or repair quality..."
+            className="w-full px-3 py-2 text-xs bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           />
         </div>
 
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={isSubmitting || stars === 0}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-2xs transition"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Submitting...</span>
-              </>
-            ) : (
-              <span>Submit Rating</span>
-            )}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting || stars === 0}
+          className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-blue-600/25 transition-all disabled:opacity-50"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Submitting Rating...</span>
+            </>
+          ) : (
+            <span>Submit Rating</span>
+          )}
+        </button>
       </form>
-    </div>
+    </GlassCard>
   )
 }

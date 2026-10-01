@@ -32,6 +32,7 @@ import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { assignRequestStaff, updateRequestByAdmin } from '@/actions/admin'
 import { addComment } from '@/actions/comments'
+import { GlassCard } from '@/components/ui/GlassCard'
 
 export default function AdminRequestDetailPage({
   params,
@@ -87,7 +88,7 @@ export default function AdminRequestDetailPage({
         .from('profiles')
         .select('role')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (profile?.role !== 'ADMIN') {
         setError('Access denied: Administrator privileges required.')
@@ -100,7 +101,7 @@ export default function AdminRequestDetailPage({
         .from('service_requests')
         .select('*')
         .eq('id', requestId)
-        .single()
+        .maybeSingle()
 
       if (reqErr || !reqData) {
         setError('Service request not found.')
@@ -121,7 +122,7 @@ export default function AdminRequestDetailPage({
           .from('profiles')
           .select('full_name, email, student_id, phone')
           .eq('user_id', reqData.created_by)
-          .single()
+          .maybeSingle()
 
         setRequester(reqProfile)
       }
@@ -132,7 +133,7 @@ export default function AdminRequestDetailPage({
           .from('profiles')
           .select('full_name, email, department_id, departments(name)')
           .eq('user_id', reqData.assigned_to)
-          .single()
+          .maybeSingle()
 
         setAssignee(staffProf)
       } else {
@@ -145,7 +146,7 @@ export default function AdminRequestDetailPage({
           .from('departments')
           .select('name')
           .eq('id', reqData.department_id)
-          .single()
+          .maybeSingle()
 
         setDepartment(dept)
       }
@@ -206,53 +207,68 @@ export default function AdminRequestDetailPage({
     setIsAssigning(true)
     setAssignSuccess(null)
 
-    const res = await assignRequestStaff(requestId, selectedStaffId)
-    if (res?.error) {
-      alert(`Assignment failed: ${res.error}`)
-    } else {
-      setAssignSuccess('Staff member assigned successfully!')
-      setTimeout(() => setAssignSuccess(null), 3000)
-      await fetchDetails()
+    try {
+      const res = await assignRequestStaff(requestId, selectedStaffId)
+      if (res?.error) {
+        alert(`Assignment failed: ${res.error}`)
+      } else {
+        setAssignSuccess('Staff member assigned successfully!')
+        setTimeout(() => setAssignSuccess(null), 3000)
+        await fetchDetails()
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Assignment failed')
+    } finally {
+      setIsAssigning(false)
     }
-    setIsAssigning(false)
   }
 
   // Handle Parameters Save
   const handleSaveParams = async () => {
     setIsSavingParams(true)
-    const res = await updateRequestByAdmin({
-      requestId,
-      category: editCategory,
-      priority: editPriority,
-      departmentId: editDeptId || null,
-      status: editStatus,
-    })
+    try {
+      const res = await updateRequestByAdmin({
+        requestId,
+        category: editCategory,
+        priority: editPriority,
+        departmentId: editDeptId || null,
+        status: editStatus,
+      })
 
-    if (res?.error) {
-      alert(`Update failed: ${res.error}`)
-    } else {
-      setIsEditingParams(false)
-      await fetchDetails()
+      if (res?.error) {
+        alert(`Update failed: ${res.error}`)
+      } else {
+        setIsEditingParams(false)
+        await fetchDetails()
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Update failed')
+    } finally {
+      setIsSavingParams(false)
     }
-    setIsSavingParams(false)
   }
 
-  // Handle Apply AI Recommendations (Phase 6 ready)
+  // Handle Apply AI Recommendations
   const handleApplyAI = async () => {
     if (!request.ai_category && !request.ai_priority) return
     setIsSavingParams(true)
-    const res = await updateRequestByAdmin({
-      requestId,
-      category: request.ai_category || undefined,
-      priority: request.ai_priority || undefined,
-      departmentId: request.ai_department || undefined,
-    })
-    if (res?.error) {
-      alert(res.error)
-    } else {
-      await fetchDetails()
+    try {
+      const res = await updateRequestByAdmin({
+        requestId,
+        category: request.ai_category || undefined,
+        priority: request.ai_priority || undefined,
+        departmentId: request.ai_department || undefined,
+      })
+      if (res?.error) {
+        alert(res.error)
+      } else {
+        await fetchDetails()
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Failed to apply AI suggestion')
+    } finally {
+      setIsSavingParams(false)
     }
-    setIsSavingParams(false)
   }
 
   // Handle Comment Submit
@@ -261,40 +277,46 @@ export default function AdminRequestDetailPage({
     if (!commentText.trim()) return
 
     setIsPostingComment(true)
-    const formData = new FormData()
-    formData.append('requestId', requestId)
-    formData.append('comment', `[Administrator Note] ${commentText.trim()}`)
+    try {
+      const formData = new FormData()
+      formData.append('requestId', requestId)
+      formData.append('comment', `[Administrator Note] ${commentText.trim()}`)
 
-    const res = await addComment(formData)
-    if (!res?.error) {
-      setCommentText('')
-      await fetchDetails()
+      const res = await addComment(formData)
+      if (!res?.error) {
+        setCommentText('')
+        await fetchDetails()
+      }
+    } catch (err: any) {
+      console.error(err)
+    } finally {
+      setIsPostingComment(false)
     }
-    setIsPostingComment(false)
   }
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-16 text-center shadow-xs">
-        <Loader2 className="w-8 h-8 mx-auto animate-spin text-red-600 mb-3" />
-        <p className="text-sm font-medium text-gray-700">Loading Request Information...</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+        <p className="text-sm font-medium text-slate-400">Loading Request Information...</p>
       </div>
     )
   }
 
   if (error || !request) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center max-w-xl mx-auto shadow-xs">
-        <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-        <h2 className="text-base font-bold text-red-900">Unable to view request</h2>
-        <p className="text-xs text-red-700 mt-1">{error || 'Request not found'}</p>
-        <Link
-          href="/admin/requests"
-          className="mt-4 inline-flex items-center space-x-1.5 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Requests</span>
-        </Link>
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <GlassCard className="p-8 text-center max-w-md w-full">
+          <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-white mb-2">Unable to view request</h2>
+          <p className="text-sm text-slate-400 mb-6">{error || 'Request not found'}</p>
+          <Link
+            href="/admin/requests"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition"
+          >
+            Return to Requests
+          </Link>
+        </GlassCard>
       </div>
     )
   }
@@ -303,50 +325,52 @@ export default function AdminRequestDetailPage({
   const currentStepIndex = workflowSteps.indexOf(request.status)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <Link
           href="/admin/requests"
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-gray-600 hover:text-slate-900 transition"
+          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-cyan-400 transition"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Request Registry</span>
         </Link>
-        <span className="text-xs font-mono text-gray-400">UUID: {request.id}</span>
+        <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-3 py-1 rounded-lg border border-slate-800">
+          ID: {request.id.slice(0, 8)}
+        </span>
       </div>
 
       {/* Main Details Card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-5">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="font-mono text-sm font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200">
-                {request.ticket_number}
+      <GlassCard className="p-6 sm:p-8 space-y-6" glow>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/50 shadow-inner">
+                {request.ticket_number || 'SR-0000'}
               </span>
               <PriorityBadge priority={request.priority} />
               <StatusBadge status={request.status} />
-              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded">
+              <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
                 {request.category}
               </span>
               {department && (
-                <span className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded">
+                <span className="text-xs font-medium text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-2.5 py-1 rounded-lg">
                   {department.name}
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               {request.title}
             </h1>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-2">
-              <span className="flex items-center space-x-1">
-                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 pt-1">
+              <span className="flex items-center space-x-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
                 <span>Submitted: {new Date(request.created_at).toLocaleString()}</span>
               </span>
               {request.assigned_at && (
-                <span className="flex items-center space-x-1 text-purple-600 font-medium">
+                <span className="flex items-center space-x-1.5 text-indigo-400 font-semibold">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Assigned: {new Date(request.assigned_at).toLocaleString()}</span>
                 </span>
@@ -357,27 +381,28 @@ export default function AdminRequestDetailPage({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsEditingParams(!isEditingParams)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl border border-slate-700/80 bg-slate-900/80 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition"
             >
-              <Edit className="w-3.5 h-3.5 text-gray-500" />
-              <span>{isEditingParams ? 'Cancel Edit' : 'Edit Request Parameters'}</span>
+              <Edit className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{isEditingParams ? 'Cancel Edit' : 'Edit Parameters'}</span>
             </button>
           </div>
         </div>
 
         {/* Inline Parameter Editing Form */}
         {isEditingParams && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Admin Parameter Modifications
+          <div className="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center space-x-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Administrator Parameter Override</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Category</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Category</label>
                 <select
                   value={editCategory}
                   onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none"
+                  className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500"
                 >
                   <option value="IT Support">IT Support</option>
                   <option value="Electrical">Electrical</option>
@@ -391,11 +416,11 @@ export default function AdminRequestDetailPage({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Priority</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Priority</label>
                 <select
                   value={editPriority}
                   onChange={(e) => setEditPriority(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none"
+                  className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500"
                 >
                   <option value="LOW">LOW</option>
                   <option value="MEDIUM">MEDIUM</option>
@@ -405,11 +430,11 @@ export default function AdminRequestDetailPage({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Department</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Department</label>
                 <select
                   value={editDeptId}
                   onChange={(e) => setEditDeptId(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none"
+                  className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500"
                 >
                   <option value="">Unassigned</option>
                   {allDepartments.map((d) => (
@@ -421,11 +446,11 @@ export default function AdminRequestDetailPage({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Status</label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none"
+                  className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500"
                 >
                   <option value="SUBMITTED">SUBMITTED</option>
                   <option value="ASSIGNED">ASSIGNED</option>
@@ -436,17 +461,17 @@ export default function AdminRequestDetailPage({
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
               <button
                 onClick={() => setIsEditingParams(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900"
+                className="px-4 py-2 text-xs text-slate-400 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveParams}
                 disabled={isSavingParams}
-                className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-lg shadow-2xs disabled:opacity-50"
+                className="inline-flex items-center space-x-1.5 px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-cyan-500/20 disabled:opacity-50"
               >
                 {isSavingParams ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>Save Changes</span>
@@ -456,20 +481,21 @@ export default function AdminRequestDetailPage({
         )}
 
         {/* Visual Lifecycle Progress Bar */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Request Status Lifecycle
+        <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Lifecycle Milestone Progression</span>
             </span>
-            <span className="text-xs font-bold text-slate-800">
+            <span className="text-xs font-bold text-cyan-400 bg-cyan-950/40 px-2.5 py-0.5 rounded border border-cyan-900/50">
               {request.status.replace('_', ' ')}
             </span>
           </div>
 
-          <div className="relative flex items-center justify-between py-2">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 z-0"></div>
+          <div className="relative flex items-center justify-between py-3 px-2 sm:px-6">
+            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full z-0"></div>
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-slate-900 transition-all duration-500 z-0"
+              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700 rounded-full z-0"
               style={{
                 width: `${Math.max(0, (currentStepIndex / (workflowSteps.length - 1)) * 100)}%`,
               }}
@@ -481,19 +507,19 @@ export default function AdminRequestDetailPage({
               return (
                 <div key={step} className="relative z-10 flex flex-col items-center">
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                       isCurrent
-                        ? 'bg-slate-900 text-white ring-4 ring-slate-100 shadow-sm'
+                        ? 'bg-cyan-500 text-slate-950 ring-4 ring-cyan-500/20 shadow-lg shadow-cyan-500/40 scale-110'
                         : isPassed
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white border-2 border-gray-300 text-gray-400'
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-slate-900 border-2 border-slate-700 text-slate-500'
                     }`}
                   >
                     {isPassed ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
                   </div>
                   <span
-                    className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
-                      isCurrent ? 'text-slate-900 font-bold' : isPassed ? 'text-gray-700' : 'text-gray-400'
+                    className={`text-[11px] mt-2 font-medium tracking-tight whitespace-nowrap hidden sm:block ${
+                      isCurrent ? 'text-cyan-400 font-bold' : isPassed ? 'text-slate-300' : 'text-slate-500'
                     }`}
                   >
                     {step.replace('_', ' ')}
@@ -503,31 +529,31 @@ export default function AdminRequestDetailPage({
             })}
           </div>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Staff Assignment Control Card */}
-      <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-5 sm:p-6 shadow-xs">
+      <GlassCard className="p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <div className="flex items-center space-x-2 text-purple-900 font-bold text-base">
-              <UserCheck className="w-5 h-5 text-purple-700" />
-              <span>Staff Delegation & Assignment</span>
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2 text-indigo-300 font-bold text-base">
+              <UserCheck className="w-5 h-5 text-indigo-400" />
+              <span>Staff Delegation & Workload Allocation</span>
             </div>
-            <p className="text-xs text-purple-800 mt-0.5">
+            <p className="text-xs text-slate-400">
               Assign or reassign this request to a campus staff specialist. The staff member and student will be immediately notified.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
             <select
               value={selectedStaffId}
               onChange={(e) => setSelectedStaffId(e.target.value)}
-              className="px-3 py-2 bg-white border border-purple-300 rounded-lg text-xs font-semibold text-gray-800 outline-none focus:ring-2 focus:ring-purple-400"
+              className="px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-white outline-none focus:border-indigo-500"
             >
               <option value="">-- Choose Staff Specialist --</option>
               {allStaff.map((s) => (
                 <option key={s.user_id} value={s.user_id}>
-                  {s.full_name} ({s.departments?.name || 'General'})
+                  {s.full_name} ({s.departments?.name || 'General Operations'})
                 </option>
               ))}
             </select>
@@ -535,17 +561,17 @@ export default function AdminRequestDetailPage({
             <button
               onClick={handleAssignStaff}
               disabled={isAssigning || !selectedStaffId || selectedStaffId === request.assigned_to}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shadow-2xs flex items-center justify-center space-x-1.5"
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-500/20 flex items-center justify-center space-x-2"
             >
               {isAssigning ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Assigning...</span>
+                  <span>Delegating...</span>
                 </>
               ) : (
                 <>
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>{request.assigned_to ? 'Reassign Staff' : 'Assign Staff'}</span>
+                  <span>{request.assigned_to ? 'Reassign Specialist' : 'Assign Specialist'}</span>
                 </>
               )}
             </button>
@@ -553,56 +579,56 @@ export default function AdminRequestDetailPage({
         </div>
 
         {assignSuccess && (
-          <div className="mt-3 text-xs text-emerald-700 font-semibold flex items-center space-x-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+          <div className="mt-3 text-xs text-emerald-400 font-semibold flex items-center space-x-1.5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>{assignSuccess}</span>
           </div>
         )}
-      </div>
+      </GlassCard>
 
       {/* AI Recommendation Card (If available) */}
       {(request.ai_category || request.ai_priority || request.ai_summary) && (
-        <div className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2 text-blue-900 font-bold text-sm">
-              <Sparkles className="w-4 h-4 text-blue-600" />
+        <GlassCard className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-cyan-400 font-bold text-sm">
+              <Sparkles className="w-4 h-4" />
               <span>Google Gemini AI Analysis</span>
             </div>
             <button
               onClick={handleApplyAI}
               disabled={isSavingParams}
-              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold transition shadow-2xs"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-lg shadow-cyan-500/20"
             >
               <span>Apply AI Recommendations</span>
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="bg-white p-3 rounded-lg border border-blue-100">
-              <span className="text-gray-400 font-medium block">Category</span>
-              <span className="font-bold text-gray-800">
-                {request.ai_category || 'N/A'} (Actual: {request.category})
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+              <span className="text-slate-500 font-medium block">Category</span>
+              <span className="font-bold text-white mt-1 block">
+                {request.ai_category || 'N/A'} <span className="text-slate-500 font-normal">(User: {request.category})</span>
               </span>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-blue-100">
-              <span className="text-gray-400 font-medium block">Priority</span>
-              <span className="font-bold text-gray-800">
-                {request.ai_priority || 'N/A'} (Actual: {request.priority})
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+              <span className="text-slate-500 font-medium block">Priority</span>
+              <span className="font-bold text-white mt-1 block">
+                {request.ai_priority || 'N/A'} <span className="text-slate-500 font-normal">(User: {request.priority})</span>
               </span>
             </div>
-            <div className="bg-white p-3 rounded-lg border border-blue-100">
-              <span className="text-gray-400 font-medium block">AI Department</span>
-              <span className="font-bold text-gray-800">Automated Match</span>
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+              <span className="text-slate-500 font-medium block">Department Match</span>
+              <span className="font-bold text-white mt-1 block">Automated Dispatch</span>
             </div>
           </div>
 
           {request.ai_summary && (
-            <div className="mt-3 bg-white p-3 rounded-lg border border-blue-100 text-xs text-gray-700">
-              <span className="font-semibold text-gray-900 block mb-0.5">Concise AI Summary:</span>
-              <p>{request.ai_summary}</p>
+            <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
+              <span className="font-semibold text-cyan-400 block mb-1">AI Diagnostic Summary:</span>
+              <p className="leading-relaxed">{request.ai_summary}</p>
             </div>
           )}
-        </div>
+        </GlassCard>
       )}
 
       {/* 2-Column Content Layout */}
@@ -610,33 +636,33 @@ export default function AdminRequestDetailPage({
         {/* Left Column: Description & Attachments & Comments (2 cols) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-4">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <FileText className="w-4 h-4 text-slate-800" />
+          <GlassCard className="p-6 space-y-4">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <FileText className="w-4 h-4 text-cyan-400" />
               <span>Full Issue Description</span>
             </h2>
 
-            <div className="text-sm text-gray-800 bg-gray-50/80 p-4 rounded-lg border border-gray-100 whitespace-pre-wrap leading-relaxed">
+            <div className="text-xs text-slate-200 bg-slate-900/60 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap leading-relaxed">
               {request.description}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   Location
                 </span>
-                <span className="text-sm font-semibold text-gray-900 mt-0.5 block flex items-center space-x-1">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs font-semibold text-slate-200 mt-1 block flex items-center space-x-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400" />
                   <span>{request.location || 'General Campus'}</span>
                 </span>
               </div>
 
-              <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block">
+              <div className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   Building & Room
                 </span>
-                <span className="text-sm font-semibold text-gray-900 mt-0.5 block flex items-center space-x-1">
-                  <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs font-semibold text-slate-200 mt-1 block flex items-center space-x-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-cyan-400" />
                   <span>
                     {request.building || 'Not specified'}
                     {request.room_number ? ` • Room ${request.room_number}` : ''}
@@ -646,17 +672,17 @@ export default function AdminRequestDetailPage({
             </div>
 
             {request.resolution_note && (
-              <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 mt-3">
-                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block mb-1">
+              <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 mt-3 space-y-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
                   Staff Resolution Note:
                 </span>
-                <p className="text-xs text-emerald-800 whitespace-pre-wrap">{request.resolution_note}</p>
+                <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{request.resolution_note}</p>
                 {request.resolution_attachment_url && (
                   <a
                     href={request.resolution_attachment_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center space-x-1 text-xs text-blue-600 hover:underline mt-2"
+                    className="inline-flex items-center space-x-1.5 text-xs text-cyan-400 hover:underline pt-1"
                   >
                     <Paperclip className="w-3.5 h-3.5" />
                     <span>View Resolution Photo</span>
@@ -664,33 +690,33 @@ export default function AdminRequestDetailPage({
                 )}
               </div>
             )}
-          </div>
+          </GlassCard>
 
           {/* Attachments */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-4">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <Paperclip className="w-4 h-4 text-slate-800" />
+          <GlassCard className="p-6 space-y-4">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <Paperclip className="w-4 h-4 text-cyan-400" />
               <span>Attachments ({attachments.length})</span>
             </h2>
 
             {attachments.length === 0 ? (
-              <p className="text-xs text-gray-500 py-2">No attachments uploaded for this ticket.</p>
+              <p className="text-xs text-slate-500 py-2 italic">No attachments uploaded for this ticket.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {attachments.map((att) => (
                   <div
                     key={att.id}
-                    className="p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition flex items-center justify-between gap-3 group"
+                    className="p-3 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between gap-3 group"
                   >
                     <div className="flex items-center space-x-2.5 truncate">
-                      <div className="w-8 h-8 rounded bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
                         <Paperclip className="w-4 h-4" />
                       </div>
                       <div className="truncate">
-                        <p className="text-xs font-semibold text-gray-900 truncate">
+                        <p className="text-xs font-semibold text-slate-200 truncate">
                           {att.file_name}
                         </p>
-                        <p className="text-[10px] text-gray-400">
+                        <p className="text-[10px] text-slate-500">
                           {new Date(att.created_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -700,7 +726,7 @@ export default function AdminRequestDetailPage({
                       href={att.file_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-white border border-gray-200 rounded group-hover:bg-blue-600 group-hover:text-white transition shrink-0 flex items-center space-x-1"
+                      className="px-3 py-1 text-xs font-semibold text-cyan-400 bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 rounded-lg transition shrink-0 flex items-center space-x-1"
                     >
                       <span>View</span>
                       <ExternalLink className="w-3 h-3" />
@@ -709,142 +735,142 @@ export default function AdminRequestDetailPage({
                 ))}
               </div>
             )}
-          </div>
+          </GlassCard>
 
           {/* Comments */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-4">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <MessageSquare className="w-4 h-4 text-slate-800" />
+          <GlassCard className="p-6 space-y-4">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <MessageSquare className="w-4 h-4 text-cyan-400" />
               <span>Discussion & Notes ({comments.length})</span>
             </h2>
 
             <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
               {comments.length === 0 ? (
-                <p className="text-xs text-gray-500 py-2 text-center">No discussion logged yet.</p>
+                <p className="text-xs text-slate-500 py-2 text-center italic">No discussion logged yet.</p>
               ) : (
                 comments.map((c) => (
-                  <div key={c.id} className="p-4 rounded-lg bg-gray-50 border border-gray-100 space-y-1.5">
+                  <div key={c.id} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-gray-900">{c.profiles?.full_name || 'User'}</span>
+                        <span className="text-xs font-bold text-white">{c.profiles?.full_name || 'User'}</span>
                         {c.profiles?.role && (
-                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase ${
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                             c.profiles.role === 'ADMIN'
-                              ? 'bg-red-100 text-red-700'
+                              ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
                               : c.profiles.role === 'STAFF'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-blue-100 text-blue-700'
+                              ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-800/60'
+                              : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
                           }`}>
                             {c.profiles.role}
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-gray-400">{new Date(c.created_at).toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(c.created_at).toLocaleString()}</span>
                     </div>
-                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{c.comment}</p>
+                    <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{c.comment}</p>
                   </div>
                 ))
               )}
             </div>
 
-            <form onSubmit={handleCommentSubmit} className="pt-3 border-t border-gray-100 space-y-2">
+            <form onSubmit={handleCommentSubmit} className="pt-3 border-t border-slate-800 space-y-3">
               <textarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Post administrative directive or public update..."
                 rows={3}
-                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition"
+                className="w-full px-4 py-3 text-sm bg-slate-900/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition resize-none"
               />
               <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={isPostingComment || !commentText.trim()}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-semibold rounded-lg text-xs transition shadow-2xs"
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-cyan-500/20"
                 >
                   {isPostingComment ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                   <span>Post Admin Note</span>
                 </button>
               </div>
             </form>
-          </div>
+          </GlassCard>
         </div>
 
         {/* Right Column: Requester, Assigned Staff & Activity Timeline (1 col) */}
         <div className="space-y-6">
           {/* Assigned Staff Info Card */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-3">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <UserCheck className="w-4 h-4 text-purple-600" />
+          <GlassCard className="p-6 space-y-3">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <UserCheck className="w-4 h-4 text-indigo-400" />
               <span>Assigned Staff Specialist</span>
             </h2>
 
             {assignee ? (
               <div className="space-y-2 text-xs">
                 <div>
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Staff Name</span>
-                  <span className="text-sm font-bold text-gray-900">{assignee.full_name}</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Staff Name</span>
+                  <span className="text-sm font-bold text-white">{assignee.full_name}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Email</span>
-                  <span className="text-gray-700">{assignee.email}</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Email</span>
+                  <span className="text-slate-300">{assignee.email}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Department</span>
-                  <span className="text-gray-700">{assignee.departments?.name || 'General Operations'}</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Department</span>
+                  <span className="text-slate-300">{assignee.departments?.name || 'General Operations'}</span>
                 </div>
               </div>
             ) : (
               <div className="text-center py-4">
-                <span className="text-xs text-amber-700 font-semibold bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                <span className="text-xs text-amber-400 font-semibold bg-amber-950/40 border border-amber-500/30 px-3 py-1 rounded-full">
                   Unassigned
                 </span>
-                <p className="text-xs text-gray-500 mt-2">Use the assignment box above to allocate this ticket.</p>
+                <p className="text-xs text-slate-400 mt-2">Use the delegation box above to route this ticket.</p>
               </div>
             )}
-          </div>
+          </GlassCard>
 
           {/* Requester Information */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-3">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <User className="w-4 h-4 text-slate-800" />
+          <GlassCard className="p-6 space-y-3">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <User className="w-4 h-4 text-cyan-400" />
               <span>Requester Information</span>
             </h2>
 
             <div className="space-y-2 text-xs">
               <div>
-                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Full Name</span>
-                <span className="text-sm font-bold text-gray-900">{requester?.full_name || 'Campus Student'}</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Full Name</span>
+                <span className="text-sm font-bold text-white">{requester?.full_name || 'Campus Student'}</span>
               </div>
               <div>
-                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Email</span>
-                <span className="text-gray-700">{requester?.email || 'N/A'}</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Email</span>
+                <span className="text-slate-300">{requester?.email || 'N/A'}</span>
               </div>
               {requester?.student_id && (
                 <div>
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider block">Student ID</span>
-                  <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-800">{requester.student_id}</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Student ID</span>
+                  <span className="font-mono bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-cyan-400">{requester.student_id}</span>
                 </div>
               )}
             </div>
-          </div>
+          </GlassCard>
 
           {/* Activity Timeline */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs space-y-4">
-            <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-              <History className="w-4 h-4 text-slate-800" />
+          <GlassCard className="p-6 space-y-4">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center space-x-2">
+              <History className="w-4 h-4 text-cyan-400" />
               <span>Audit Log & Timeline</span>
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
               {activityLogs.length === 0 ? (
-                <p className="text-xs text-gray-500 py-2">No activity recorded yet.</p>
+                <p className="text-xs text-slate-500 py-2 italic">No activity recorded yet.</p>
               ) : (
                 activityLogs.map((log) => (
-                  <div key={log.id} className="flex items-start space-x-3 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-slate-900 mt-1.5 shrink-0 ring-4 ring-slate-100"></div>
+                  <div key={log.id} className="flex items-start space-x-3 text-xs bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 shrink-0 ring-4 ring-cyan-500/20"></div>
                     <div>
-                      <p className="font-semibold text-gray-800">{log.action}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
+                      <p className="font-semibold text-slate-200">{log.action}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
                         {new Date(log.created_at).toLocaleString()}
                         {log.profiles?.full_name ? ` • by ${log.profiles.full_name}` : ''}
                       </p>
@@ -853,7 +879,7 @@ export default function AdminRequestDetailPage({
                 ))
               )}
             </div>
-          </div>
+          </GlassCard>
         </div>
       </div>
     </div>

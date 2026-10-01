@@ -17,12 +17,16 @@ import {
   ExternalLink,
   Building2,
   Send,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react'
 import { addComment } from '@/actions/comments'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { RatingCard } from '@/components/student/RatingCard'
+import { GlassCard } from '@/components/ui/GlassCard'
+import { motion } from 'framer-motion'
 
 export default function StudentRequestDetailPage() {
   const params = useParams()
@@ -39,57 +43,61 @@ export default function StudentRequestDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = async () => {
-    const supabase = createClient()
-    const { data: reqData } = await supabase
-      .from('service_requests')
-      .select('*, departments(name)')
-      .eq('id', requestId)
-      .single()
+    try {
+      const supabase = createClient()
+      const { data: reqData } = await supabase
+        .from('service_requests')
+        .select('*, departments(name)')
+        .eq('id', requestId)
+        .maybeSingle()
 
-    if (reqData) {
-      setRequest(reqData)
+      if (reqData) {
+        setRequest(reqData)
+      }
+
+      // Attachments
+      const { data: attachData } = await supabase
+        .from('request_attachments')
+        .select('*')
+        .eq('request_id', requestId)
+
+      if (attachData) setAttachments(attachData)
+
+      // Activity logs
+      const { data: logsData } = await supabase
+        .from('activity_logs')
+        .select('action, created_at')
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: false })
+
+      if (logsData) setActivityLogs(logsData)
+
+      // Comments
+      const { data: commentsData } = await supabase
+        .from('request_comments')
+        .select('*, profiles(full_name, role)')
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true })
+
+      if (commentsData) {
+        setComments(commentsData)
+      }
+
+      // Rating
+      const { data: ratingData } = await supabase
+        .from('ratings')
+        .select('*')
+        .eq('request_id', requestId)
+        .maybeSingle()
+
+      if (ratingData) {
+        setExistingRating(ratingData)
+      }
+    } catch (err) {
+      console.error('Error fetching request data:', err)
+    } finally {
+      setLoading(false)
     }
-
-    // Attachments
-    const { data: attachData } = await supabase
-      .from('request_attachments')
-      .select('*')
-      .eq('request_id', requestId)
-
-    if (attachData) setAttachments(attachData)
-
-    // Activity logs
-    const { data: logsData } = await supabase
-      .from('activity_logs')
-      .select('action, created_at')
-      .eq('request_id', requestId)
-      .order('created_at', { ascending: false })
-
-    if (logsData) setActivityLogs(logsData)
-
-    // Comments
-    const { data: commentsData } = await supabase
-      .from('request_comments')
-      .select('*, profiles(full_name, role)')
-      .eq('request_id', requestId)
-      .order('created_at', { ascending: true })
-
-    if (commentsData) {
-      setComments(commentsData)
-    }
-
-    // Rating
-    const { data: ratingData } = await supabase
-      .from('ratings')
-      .select('*')
-      .eq('request_id', requestId)
-      .maybeSingle()
-
-    if (ratingData) {
-      setExistingRating(ratingData)
-    }
-
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -139,42 +147,51 @@ export default function StudentRequestDetailPage() {
     setCommenting(true)
     setError(null)
 
-    const formData = new FormData()
-    formData.append('requestId', requestId)
-    formData.append('comment', commentText.trim())
+    try {
+      const formData = new FormData()
+      formData.append('requestId', requestId)
+      formData.append('comment', commentText.trim())
 
-    const result = await addComment(formData)
+      const result = await addComment(formData)
 
-    if (result?.error) {
-      setError(result.error)
-    } else {
-      setCommentText('')
-      await fetchData()
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        setCommentText('')
+        await fetchData()
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to submit comment')
+    } finally {
+      setCommenting(false)
     }
-    setCommenting(false)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-2" />
-          <p className="text-sm font-semibold text-gray-700">Loading Request Details...</p>
-        </div>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+        <p className="text-sm font-medium text-slate-400">Loading Request Details...</p>
       </div>
     )
   }
 
   if (!request) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-xl border border-gray-200 text-center max-w-md shadow-xs">
-          <h2 className="text-lg font-bold text-gray-900 mb-2">Request Not Found</h2>
-          <p className="text-xs text-gray-500 mb-4">The requested service ticket does not exist or access is restricted.</p>
-          <Link href="/student/dashboard" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold">
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <GlassCard className="p-8 text-center max-w-md w-full">
+          <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-3 opacity-90" />
+          <h2 className="text-lg font-bold text-white mb-2">Request Not Found</h2>
+          <p className="text-sm text-slate-400 mb-6">
+            The requested service ticket does not exist or you do not have permission to view it.
+          </p>
+          <Link
+            href="/student/dashboard"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-cyan-500/20"
+          >
             Return to Dashboard
           </Link>
-        </div>
+        </GlassCard>
       </div>
     )
   }
@@ -183,259 +200,288 @@ export default function StudentRequestDetailPage() {
   const currentIndex = statusFlow.indexOf(request.status)
 
   return (
-    <div className="space-y-6">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/student/requests"
-            className="inline-flex items-center space-x-2 text-xs font-semibold text-gray-600 hover:text-blue-600 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to My Requests</span>
-          </Link>
-          <span className="text-xs font-mono text-gray-400">Ticket: {request.ticket_number}</span>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Navigation Breadcrumb */}
+      <div className="flex items-center justify-between">
+        <Link
+          href="/student/requests"
+          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-cyan-400 transition"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to My Requests</span>
+        </Link>
+        <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-3 py-1 rounded-lg border border-slate-800">
+          ID: {request.id.slice(0, 8)}
+        </span>
+      </div>
+
+      {/* Main Details Card */}
+      <GlassCard className="p-6 sm:p-8 space-y-8" glow>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 pb-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/50 shadow-inner">
+                {request.ticket_number || 'SR-0000'}
+              </span>
+              <PriorityBadge priority={request.priority} />
+              <StatusBadge status={request.status} />
+              <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                {request.category}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              {request.title}
+            </h1>
+            <p className="text-xs text-slate-400 flex items-center space-x-1.5">
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <span>Created on {new Date(request.created_at).toLocaleString()}</span>
+            </p>
+          </div>
         </div>
 
-        {/* Main Details Card */}
-        <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                  {request.ticket_number}
-                </span>
-                <PriorityBadge priority={request.priority} />
-                <StatusBadge status={request.status} />
-                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                  {request.category}
-                </span>
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-                {request.title}
-              </h1>
-              <p className="text-xs text-gray-400 mt-1">
-                Submitted on {new Date(request.created_at).toLocaleString()}
-              </p>
-            </div>
+        {/* Status Lifecycle Tracker */}
+        <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Lifecycle Milestone Progression</span>
+            </span>
+            <span className="text-xs font-bold text-cyan-400 bg-cyan-950/40 px-2.5 py-0.5 rounded border border-cyan-900/50">
+              Current: {request.status.replace('_', ' ')}
+            </span>
           </div>
 
-          {/* Status Tracker */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Status Lifecycle
-              </span>
-              <span className="text-xs font-bold text-blue-600">
-                {request.status.replace('_', ' ')}
-              </span>
-            </div>
+          <div className="relative flex items-center justify-between py-3 px-2 sm:px-6">
+            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full z-0"></div>
+            <div
+              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700 rounded-full z-0"
+              style={{
+                width: `${Math.max(0, (currentIndex / (statusFlow.length - 1)) * 100)}%`,
+              }}
+            ></div>
 
-            <div className="relative flex items-center justify-between py-2">
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 z-0"></div>
-              <div
-                className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-blue-600 transition-all duration-500 z-0"
-                style={{
-                  width: `${Math.max(0, (currentIndex / (statusFlow.length - 1)) * 100)}%`,
-                }}
-              ></div>
-
-              {statusFlow.map((s, idx) => {
-                const isPassed = idx < currentIndex
-                const isCurrent = idx === currentIndex
-                return (
-                  <div key={s} className="relative z-10 flex flex-col items-center">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isCurrent
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm'
-                          : isPassed
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white border-2 border-gray-300 text-gray-400'
-                      }`}
-                    >
-                      {isPassed ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
-                    </div>
-                    <span
-                      className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
-                        isCurrent ? 'text-blue-700 font-bold' : isPassed ? 'text-gray-700' : 'text-gray-400'
-                      }`}
-                    >
-                      {s.replace('_', ' ')}
-                    </span>
+            {statusFlow.map((s, idx) => {
+              const isPassed = idx < currentIndex
+              const isCurrent = idx === currentIndex
+              return (
+                <div key={s} className="relative z-10 flex flex-col items-center">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCurrent
+                        ? 'bg-cyan-500 text-slate-950 ring-4 ring-cyan-500/20 shadow-lg shadow-cyan-500/40 scale-110'
+                        : isPassed
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-slate-900 border-2 border-slate-700 text-slate-500'
+                    }`}
+                  >
+                    {isPassed ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
                   </div>
-                )
-              })}
-            </div>
+                  <span
+                    className={`text-[11px] mt-2 font-medium tracking-tight whitespace-nowrap hidden sm:block ${
+                      isCurrent
+                        ? 'text-cyan-400 font-bold'
+                        : isPassed
+                        ? 'text-slate-300'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {s.replace('_', ' ')}
+                  </span>
+                </div>
+              )
+            })}
           </div>
+        </div>
 
-          {/* Resolution Notification & Staff Note */}
-          {request.status === 'RESOLVED' && (
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-              <div className="flex items-center space-x-2 text-emerald-900 font-bold text-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Your Service Request Has Been Resolved!</span>
-              </div>
-              {request.resolution_note && (
-                <div className="bg-white p-3 rounded-lg border border-emerald-100 text-xs text-gray-800">
-                  <span className="font-semibold text-gray-900 block mb-0.5">Staff Resolution Note:</span>
-                  <p>{request.resolution_note}</p>
-                </div>
-              )}
-              {request.resolution_attachment_url && (
-                <a
-                  href={request.resolution_attachment_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center space-x-1.5 text-xs text-blue-600 hover:underline pt-1"
-                >
-                  <Paperclip className="w-3.5 h-3.5" />
-                  <span>View Resolution Proof Image</span>
-                </a>
-              )}
+        {/* Resolution Banner */}
+        {request.status === 'RESOLVED' && (
+          <div className="p-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-3 backdrop-blur-md">
+            <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <span>Service Request Marked as Resolved by Campus Operations</span>
             </div>
-          )}
+            {request.resolution_note && (
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-emerald-500/20 text-xs text-slate-200">
+                <span className="font-semibold text-emerald-400 block mb-1">Resolution Summary:</span>
+                <p className="leading-relaxed text-slate-300">{request.resolution_note}</p>
+              </div>
+            )}
+            {request.resolution_attachment_url && (
+              <a
+                href={request.resolution_attachment_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center space-x-2 text-xs text-cyan-400 hover:text-cyan-300 hover:underline pt-1"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                <span>View Attached Resolution Verification Image</span>
+              </a>
+            )}
+          </div>
+        )}
 
-          {/* Student Rating Form (Visible when Resolved or Closed) */}
-          {(request.status === 'RESOLVED' || request.status === 'CLOSED') && (
-            <RatingCard
-              requestId={requestId}
-              existingRating={existingRating}
-              onRatingSubmitted={fetchData}
-            />
-          )}
+        {/* Rating Submission Card (if Resolved/Closed) */}
+        {(request.status === 'RESOLVED' || request.status === 'CLOSED') && (
+          <RatingCard
+            requestId={requestId}
+            existingRating={existingRating}
+            onRatingSubmitted={fetchData}
+          />
+        )}
 
-          {/* Issue Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            <div className="space-y-3">
-              <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">
-                Request Information
-              </h3>
-              <div className="text-xs space-y-2">
-                <div>
-                  <span className="text-gray-400 block font-medium">Description</span>
-                  <p className="text-gray-800 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap leading-relaxed mt-1">
-                    {request.description}
-                  </p>
+        {/* Issue Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          <div className="space-y-4">
+            <h3 className="font-bold text-white text-sm border-b border-slate-800 pb-2.5 flex items-center space-x-2">
+              <FileText className="w-4 h-4 text-cyan-400" />
+              <span>Ticket Specifications</span>
+            </h3>
+            
+            <div className="space-y-3 text-xs">
+              <div>
+                <span className="text-slate-400 block font-medium mb-1.5">Problem Description</span>
+                <div className="text-slate-200 bg-slate-900/60 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap leading-relaxed">
+                  {request.description}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Campus Area</span>
+                  <span className="font-semibold text-slate-200 mt-1 flex items-center space-x-1.5 text-xs">
+                    <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{request.location || 'Main Campus'}</span>
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Location</span>
-                    <span className="font-semibold text-gray-800 mt-0.5 block flex items-center space-x-1">
-                      <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{request.location || 'Campus'}</span>
-                    </span>
-                  </div>
-
-                  <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Building & Room</span>
-                    <span className="font-semibold text-gray-800 mt-0.5 block flex items-center space-x-1">
-                      <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{request.building || 'General'} {request.room_number ? `• Rm ${request.room_number}` : ''}</span>
-                    </span>
-                  </div>
+                <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Building & Unit</span>
+                  <span className="font-semibold text-slate-200 mt-1 flex items-center space-x-1.5 text-xs">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="truncate">{request.building || 'General'}{request.room_number ? ` • Room ${request.room_number}` : ''}</span>
+                  </span>
                 </div>
+              </div>
 
-                {attachments.length > 0 && (
-                  <div className="pt-2">
-                    <span className="text-gray-400 block font-medium mb-1.5">Submitted Attachment</span>
+              {attachments.length > 0 && (
+                <div className="pt-2">
+                  <span className="text-slate-400 block font-medium mb-2">Attached Documentation</span>
+                  <div className="flex flex-wrap gap-2">
                     {attachments.map((att) => (
                       <a
                         key={att.id}
                         href={att.file_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center space-x-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-blue-600 transition"
+                        className="inline-flex items-center space-x-2 px-3.5 py-2 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl text-cyan-400 hover:text-cyan-300 transition text-xs"
                       >
                         <Paperclip className="w-3.5 h-3.5" />
-                        <span className="truncate max-w-xs">{att.file_name}</span>
-                        <ExternalLink className="w-3 h-3 text-gray-400" />
+                        <span className="truncate max-w-[200px]">{att.file_name}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-500" />
                       </a>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Activity History */}
-            <div className="space-y-3">
-              <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2 flex items-center space-x-1.5">
-                <History className="w-4 h-4 text-blue-600" />
-                <span>Ticket Progress Timeline</span>
-              </h3>
-
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                {activityLogs.length === 0 ? (
-                  <p className="text-xs text-gray-400">No activity recorded yet.</p>
-                ) : (
-                  activityLogs.map((log, idx) => (
-                    <div key={idx} className="flex items-start space-x-3 text-xs">
-                      <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 shrink-0 ring-2 ring-blue-100"></div>
-                      <div>
-                        <p className="font-semibold text-gray-800">{log.action}</p>
-                        <p className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Discussion / Comments Card */}
-        <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 sm:p-8 space-y-4">
-          <h2 className="text-base font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center space-x-2">
-            <MessageSquare className="w-4 h-4 text-blue-600" />
-            <span>Discussion & Comments ({comments.length})</span>
-          </h2>
-
-          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-            {comments.length === 0 ? (
-              <p className="text-xs text-gray-500 py-3 text-center">No comments posted yet.</p>
-            ) : (
-              comments.map((c) => (
-                <div key={c.id} className="p-3.5 bg-gray-50 rounded-lg border border-gray-100 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-gray-900">{c.profiles?.full_name || 'Campus Member'}</span>
-                      {c.profiles?.role && (
-                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase ${
-                          c.profiles.role === 'STAFF' ? 'bg-purple-100 text-purple-700' : c.profiles.role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {c.profiles.role}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleString()}</span>
-                  </div>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{c.comment}</p>
                 </div>
-              ))
-            )}
+              )}
+            </div>
           </div>
 
-          <form onSubmit={handleCommentSubmit} className="pt-3 border-t border-gray-100 space-y-2">
-            {error && <div className="text-red-600 text-xs">{error}</div>}
-            <textarea
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Ask a question or provide additional details to the assigned staff..."
-              rows={3}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition"
-            />
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={commenting || !commentText.trim()}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shadow-2xs"
-              >
-                {commenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                <span>Post Comment</span>
-              </button>
+          {/* Activity Logs Timeline */}
+          <div className="space-y-4">
+            <h3 className="font-bold text-white text-sm border-b border-slate-800 pb-2.5 flex items-center space-x-2">
+              <History className="w-4 h-4 text-indigo-400" />
+              <span>Activity & Status Log</span>
+            </h3>
+
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {activityLogs.length === 0 ? (
+                <p className="text-xs text-slate-500 italic p-3">No activity recorded yet.</p>
+              ) : (
+                activityLogs.map((log, idx) => (
+                  <div key={idx} className="flex items-start space-x-3 text-xs bg-slate-900/30 p-3 rounded-xl border border-slate-800/50">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 shrink-0 ring-4 ring-cyan-500/20"></div>
+                    <div>
+                      <p className="font-semibold text-slate-200">{log.action}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          </form>
+          </div>
         </div>
-      </div>
+      </GlassCard>
+
+      {/* Discussion / Comments Section */}
+      <GlassCard className="p-6 sm:p-8 space-y-6">
+        <h2 className="text-base font-bold text-white border-b border-slate-800 pb-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <MessageSquare className="w-4 h-4 text-cyan-400" />
+            <span>Discussion Thread</span>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
+            {comments.length} {comments.length === 1 ? 'Message' : 'Messages'}
+          </span>
+        </h2>
+
+        <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+          {comments.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+              <p className="text-xs text-slate-400">No comments posted yet. Send a note to the operations team below.</p>
+            </div>
+          ) : (
+            comments.map((c) => (
+              <div key={c.id} className="p-4 bg-slate-900/60 rounded-xl border border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-white">{c.profiles?.full_name || 'Campus Member'}</span>
+                    {c.profiles?.role && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        c.profiles.role === 'STAFF'
+                          ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-800/60'
+                          : c.profiles.role === 'ADMIN'
+                          ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                          : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
+                      }`}>
+                        {c.profiles.role}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-500">{new Date(c.created_at).toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{c.comment}</p>
+              </div>
+            ))
+          )}
+        </div>
+
+        <form onSubmit={handleCommentSubmit} className="pt-4 border-t border-slate-800 space-y-3">
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+          <textarea
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Add additional details or communicate with assigned campus staff..."
+            rows={3}
+            className="w-full px-4 py-3 text-sm bg-slate-900/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500/80 focus:ring-2 focus:ring-cyan-500/20 transition resize-none"
+          />
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={commenting || !commentText.trim()}
+              className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-cyan-500/20"
+            >
+              {commenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              <span>Post Comment</span>
+            </button>
+          </div>
+        </form>
+      </GlassCard>
+    </div>
   )
 }

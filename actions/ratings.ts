@@ -54,7 +54,7 @@ export async function submitRequestRating(params: {
     .select('id')
     .eq('request_id', requestId)
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (existing) {
     return { error: 'You have already submitted a rating for this request' }

@@ -13,11 +13,16 @@ import {
   Loader2,
   AlertCircle,
   Inbox,
-  User
+  User,
+  ShieldCheck,
+  Layers,
+  Sparkles
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { GlassCard } from '@/components/ui/GlassCard'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface RequestRecord {
   id: string
@@ -98,6 +103,7 @@ export default function AdminRequestsPage() {
       // Fetch staff names for assigned requests
       const assignedIds = Array.from(new Set((reqData || []).map((r) => r.assigned_to).filter(Boolean))) as string[]
       let staffMap: Record<string, string> = {}
+
       if (assignedIds.length > 0) {
         const { data: staffProfiles } = await supabase
           .from('profiles')
@@ -134,7 +140,7 @@ export default function AdminRequestsPage() {
       const term = search.toLowerCase().trim()
       const matchesSearch =
         !term ||
-        req.ticket_number.toLowerCase().includes(term) ||
+        req.ticket_number?.toLowerCase().includes(term) ||
         req.title.toLowerCase().includes(term) ||
         (req.description && req.description.toLowerCase().includes(term)) ||
         (req.location && req.location.toLowerCase().includes(term)) ||
@@ -165,37 +171,42 @@ export default function AdminRequestsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-            Campus Service Requests
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Global management, triage, and assignment for all campus service tickets
+      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+              <Layers className="w-5 h-5" />
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Campus Service Request Directory
+            </h1>
+          </div>
+          <p className="text-sm text-slate-400">
+            Global management, triage, technician delegation, and lifecycle controls for all campus service tickets.
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 text-white shadow-xs">
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-cyan-400 shadow-sm">
             {filteredRequests.length} of {requests.length} Requests
           </span>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-3">
+      <GlassCard className="p-4 sm:p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Search Input */}
           <div className="relative sm:col-span-2 lg:col-span-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
               placeholder="Search ticket, title, staff..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
             />
           </div>
 
@@ -204,7 +215,7 @@ export default function AdminRequestsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
             >
               <option value="ALL">All Statuses</option>
               <option value="SUBMITTED">SUBMITTED (Unassigned)</option>
@@ -220,7 +231,7 @@ export default function AdminRequestsPage() {
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
             >
               <option value="ALL">All Priorities</option>
               <option value="CRITICAL">CRITICAL</option>
@@ -235,7 +246,7 @@ export default function AdminRequestsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
             >
               <option value="ALL">All Categories</option>
               <option value="IT Support">IT Support</option>
@@ -254,7 +265,7 @@ export default function AdminRequestsPage() {
             <select
               value={deptFilter}
               onChange={(e) => setDeptFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
             >
               <option value="ALL">All Departments</option>
               {departments.map((d) => (
@@ -267,163 +278,110 @@ export default function AdminRequestsPage() {
         </div>
 
         {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
-            <span>Filtered results active</span>
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+            <span className="text-slate-400">
+              Showing <span className="font-semibold text-white">{filteredRequests.length}</span> matching tickets
+            </span>
             <button
               onClick={clearFilters}
-              className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-semibold"
+              className="inline-flex items-center space-x-1.5 text-cyan-400 hover:text-cyan-300 font-semibold"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset filters</span>
+              <span>Reset Filters</span>
             </button>
           </div>
         )}
-      </div>
+      </GlassCard>
 
       {/* Main Content Area */}
-      {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-xs">
-          <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-3" />
-          <p className="text-sm font-medium text-gray-700">Loading campus requests...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center shadow-xs">
-          <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-          <h3 className="text-base font-bold text-red-800">Error loading requests</h3>
-          <p className="text-xs text-red-600 mt-1">{error}</p>
-          <button
-            onClick={fetchRequests}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
-          >
-            Retry
-          </button>
-        </div>
-      ) : filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-xs">
-          <Inbox className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-          <h3 className="text-base font-bold text-gray-900">No requests match criteria</h3>
-          <p className="text-xs text-gray-500 mt-1">Try modifying your filters or search keywords.</p>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="mt-4 inline-flex items-center space-x-1 px-3.5 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Clear Filters</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        /* Table View */
-        <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
+      <GlassCard className="p-0 overflow-hidden">
+        {loading ? (
+          <div className="py-20 text-center space-y-3">
+            <Loader2 className="w-8 h-8 mx-auto animate-spin text-cyan-400" />
+            <p className="text-xs text-slate-400">Loading campus requests database...</p>
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center space-y-2">
+            <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+            <p className="text-sm font-semibold text-white">Error Loading Requests</p>
+            <p className="text-xs text-slate-400">{error}</p>
+          </div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="py-16">
+            <EmptyState
+              icon={Inbox}
+              title="No requests match criteria"
+              description="Try adjusting your filters or search keywords to view tickets."
+              actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
+              onAction={hasActiveFilters ? clearFilters : undefined}
+            />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50/80">
+            <table className="min-w-full divide-y divide-slate-800/80">
+              <thead className="bg-slate-900/60">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Ticket ID
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Ticket #
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Title & Category
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Priority
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Department
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Assigned Staff
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Date
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Location
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-800/80">
                 {filteredRequests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
-                    onClick={() => {
-                      window.location.href = `/admin/requests/${req.id}`
-                    }}
-                  >
+                  <tr key={req.id} className="hover:bg-slate-900/40 transition">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">
-                        {req.ticket_number}
+                      <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">
+                        {req.ticket_number || 'SR-0000'}
                       </span>
                     </td>
-
                     <td className="px-6 py-4">
-                      <div className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition">
-                        {req.title}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {req.category}
-                      </div>
+                      <div className="font-semibold text-white text-xs line-clamp-1 max-w-xs">{req.title}</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">{req.category}</div>
                     </td>
-
                     <td className="px-6 py-4 whitespace-nowrap">
                       <PriorityBadge priority={req.priority} />
                     </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-700">
-                      {(Array.isArray(req.departments) ? req.departments[0]?.name : req.departments?.name) ? (
-                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 font-medium">
-                          <Building2 className="w-3 h-3 text-indigo-500" />
-                          <span>{Array.isArray(req.departments) ? req.departments[0]?.name : req.departments?.name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 italic">Unassigned Dept</span>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                        <span>{req.location || 'Campus'}</span>
-                      </div>
-                    </td>
-
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge status={req.status} />
                     </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-xs">
-                      {req.assignee ? (
-                        <span className="inline-flex items-center space-x-1 text-gray-800 font-medium bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-full">
-                          <UserCheck className="w-3 h-3 text-purple-600" />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {req.assignee?.full_name ? (
+                        <span className="inline-flex items-center space-x-1.5 text-xs text-indigo-300 font-medium">
+                          <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
                           <span>{req.assignee.full_name}</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center space-x-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[11px] font-semibold">
-                          <span>Unassigned</span>
-                        </span>
+                        <span className="text-xs text-amber-400 font-medium italic">Unassigned</span>
                       )}
                     </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                      {new Date(req.created_at).toLocaleDateString()}
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
+                      <span>{req.location || 'Campus'}</span>
                     </td>
-
                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
                       <Link
                         href={`/admin/requests/${req.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg font-semibold bg-gray-100 text-gray-700 group-hover:bg-slate-900 group-hover:text-white transition shadow-2xs"
+                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-500 hover:text-slate-950 text-slate-300 font-semibold transition"
                       >
                         <span>Manage</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3 h-3" />
                       </Link>
                     </td>
                   </tr>
@@ -431,8 +389,8 @@ export default function AdminRequestsPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </GlassCard>
     </div>
   )
 }

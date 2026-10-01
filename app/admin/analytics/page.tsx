@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
-import { BarChart3, TrendingUp, Filter } from 'lucide-react'
+import { BarChart3, TrendingUp, Filter, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { AnalyticsCharts } from '@/components/admin/AnalyticsCharts'
+import { GlassCard } from '@/components/ui/GlassCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export default async function AdminAnalyticsPage() {
     .from('profiles')
     .select('role')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (profile?.role !== 'ADMIN') {
     redirect('/login')
@@ -48,10 +49,10 @@ export default async function AdminAnalyticsPage() {
 
   // 2. Priority Data
   const priorityData = [
-    { name: 'LOW', count: allReqs.filter((r) => r.priority === 'LOW').length, color: '#3b82f6' },
+    { name: 'LOW', count: allReqs.filter((r) => r.priority === 'LOW').length, color: '#38bdf8' },
     { name: 'MEDIUM', count: allReqs.filter((r) => r.priority === 'MEDIUM').length, color: '#f59e0b' },
     { name: 'HIGH', count: allReqs.filter((r) => r.priority === 'HIGH').length, color: '#f97316' },
-    { name: 'CRITICAL', count: allReqs.filter((r) => r.priority === 'CRITICAL').length, color: '#ef4444' },
+    { name: 'CRITICAL', count: allReqs.filter((r) => r.priority === 'CRITICAL').length, color: '#f43f5e' },
   ]
 
   // 3. Category Data
@@ -100,24 +101,29 @@ export default async function AdminAnalyticsPage() {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-            System Analytics & Insights
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Real-time intelligence on campus operations, resolution workloads, and trends
+      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+              <BarChart3 className="w-5 h-5" />
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Operational Analytics & Intelligence
+            </h1>
+          </div>
+          <p className="text-sm text-slate-400">
+            Realtime telemetry on campus service requests, SLA velocity, category distribution, and department load.
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 text-white shadow-xs">
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-cyan-400 shadow-sm">
             {allReqs.length} Total Data Points
           </span>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Analytics Charts */}
       <AnalyticsCharts

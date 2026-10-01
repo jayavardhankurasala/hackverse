@@ -9,7 +9,7 @@ export async function createServiceRequest(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    throw new Error('Not authenticated')
+    return { error: 'Authentication required. Please sign in to submit a service request.' }
   }
 
   const title = formData.get('title') as string
@@ -27,23 +27,33 @@ export async function createServiceRequest(formData: FormData) {
   let fileType = null
 
   if (file && file.size > 0) {
-    const fileExt = file.name.split('.').pop()
+    if (file.size > 5 * 1024 * 1024) {
+      return { error: 'Attachment size exceeds maximum limit of 5MB' }
+    }
+
+    const fileExt = file.name.split('.').pop() || 'jpg'
     fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
     fileType = file.type
 
-    const { error: uploadError } = await supabase.storage
-      .from('request-attachments')
-      .upload(`public/${fileName}`, file)
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('request-attachments')
+        .upload(`public/${fileName}`, file, {
+          cacheControl: '3600',
+          upsert: false,
+        })
 
-    if (uploadError) {
-      return { error: 'Failed to upload image' }
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('request-attachments')
+          .getPublicUrl(`public/${fileName}`)
+        fileUrl = publicUrl
+      } else {
+        console.warn('Supabase storage upload notice:', uploadError.message)
+      }
+    } catch (storageErr: any) {
+      console.warn('Storage error:', storageErr.message)
     }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('request-attachments')
-      .getPublicUrl(`public/${fileName}`)
-      
-    fileUrl = publicUrl
   }
 
   // Generate unique ticket number (in a real app, you'd use a robust sequencer or sequence in DB)

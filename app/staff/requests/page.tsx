@@ -12,11 +12,15 @@ import {
   Clock, 
   AlertCircle,
   Inbox,
-  Loader2
+  Loader2,
+  Wrench,
+  Sparkles
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { GlassCard } from '@/components/ui/GlassCard'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 interface RequestItem {
   id: string
@@ -100,320 +104,246 @@ export default function StaffRequestsPage() {
     requests.forEach((r) => {
       if (r.category) cats.add(r.category)
     })
-    return Array.from(cats)
+    return Array.from(cats).sort()
   }, [requests])
 
-  // Filter requests
+  // Client-side filtering logic
   const filteredRequests = useMemo(() => {
     return requests.filter((req) => {
-      const term = search.toLowerCase().trim()
-      const matchesSearch =
-        !term ||
-        req.ticket_number.toLowerCase().includes(term) ||
-        req.title.toLowerCase().includes(term) ||
-        (req.description && req.description.toLowerCase().includes(term)) ||
-        (req.location && req.location.toLowerCase().includes(term))
+      // 1. Search Query
+      if (search.trim()) {
+        const query = search.toLowerCase()
+        const matchTitle = req.title.toLowerCase().includes(query)
+        const matchTicket = req.ticket_number?.toLowerCase().includes(query)
+        const matchDesc = req.description?.toLowerCase().includes(query)
+        const matchBuilding = req.building?.toLowerCase().includes(query)
+        const matchLocation = req.location?.toLowerCase().includes(query)
+        if (!matchTitle && !matchTicket && !matchDesc && !matchBuilding && !matchLocation) {
+          return false
+        }
+      }
 
-      const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
-      const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
-      const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
+      // 2. Status Filter
+      if (statusFilter !== 'ALL' && req.status !== statusFilter) {
+        return false
+      }
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesCategory
+      // 3. Priority Filter
+      if (priorityFilter !== 'ALL' && req.priority !== priorityFilter) {
+        return false
+      }
+
+      // 4. Category Filter
+      if (categoryFilter !== 'ALL' && req.category !== categoryFilter) {
+        return false
+      }
+
+      return true
     })
   }, [requests, search, statusFilter, priorityFilter, categoryFilter])
 
-  const hasActiveFilters =
-    search !== '' || statusFilter !== 'ALL' || priorityFilter !== 'ALL' || categoryFilter !== 'ALL'
-
-  const clearFilters = () => {
+  const handleResetFilters = () => {
     setSearch('')
     setStatusFilter('ALL')
     setPriorityFilter('ALL')
     setCategoryFilter('ALL')
   }
 
+  const isFiltered = search || statusFilter !== 'ALL' || priorityFilter !== 'ALL' || categoryFilter !== 'ALL'
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-            Assigned Service Requests
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center space-x-2">
+            <span className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Wrench className="w-5 h-5" />
+            </span>
+            <span>Assigned Service Queue</span>
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Review, track, and update all service tickets assigned to you
+          <p className="text-slate-400 text-sm mt-1">
+            Manage, execute, and mark resolutions for campus tickets dispatched to your account.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-            {filteredRequests.length} of {requests.length} Requests
-          </span>
-        </div>
-      </div>
+        <button
+          onClick={fetchRequests}
+          disabled={loading}
+          className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 text-xs font-semibold transition"
+        >
+          <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh Queue</span>
+        </button>
+      </GlassCard>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-3">
+      <GlassCard className="p-4 sm:p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Search Input */}
-          <div className="relative sm:col-span-2 lg:col-span-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          {/* Search Box */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
-              placeholder="Search ticket #, title, location..."
+              placeholder="Search ticket #, title, room..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
             />
           </div>
 
-          {/* Status Filter */}
+          {/* Status Dropdown */}
           <div>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
             >
               <option value="ALL">All Statuses</option>
-              <option value="ASSIGNED">ASSIGNED (Queued)</option>
-              <option value="IN_PROGRESS">IN PROGRESS (Active)</option>
-              <option value="RESOLVED">RESOLVED</option>
-              <option value="CLOSED">CLOSED</option>
+              <option value="ASSIGNED">Assigned (Waiting)</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
             </select>
           </div>
 
-          {/* Priority Filter */}
+          {/* Priority Dropdown */}
           <div>
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
             >
               <option value="ALL">All Priorities</option>
-              <option value="CRITICAL">CRITICAL</option>
-              <option value="HIGH">HIGH</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="LOW">LOW</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
             </select>
           </div>
 
-          {/* Category Filter */}
+          {/* Category Dropdown */}
           <div>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-medium text-gray-700"
+              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
             >
               <option value="ALL">All Categories</option>
-              {availableCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
+              {availableCategories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Clear Filters Indicator */}
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
-            <span>Filters active</span>
+        {/* Filters Active Counter & Reset */}
+        {isFiltered && (
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+            <span className="text-slate-400">
+              Showing <span className="font-semibold text-white">{filteredRequests.length}</span> of {requests.length} tickets
+            </span>
             <button
-              onClick={clearFilters}
-              className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-semibold"
+              onClick={handleResetFilters}
+              className="inline-flex items-center space-x-1.5 text-indigo-400 hover:text-indigo-300 font-semibold"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset all filters</span>
+              <span>Reset Filters</span>
             </button>
           </div>
         )}
-      </div>
+      </GlassCard>
 
-      {/* Content Area */}
-      {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-xs">
-          <Loader2 className="w-8 h-8 mx-auto animate-spin text-blue-600 mb-3" />
-          <p className="text-sm font-medium text-gray-700">Loading your assigned requests...</p>
-          <p className="text-xs text-gray-400 mt-1">Fetching live data from Supabase</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center shadow-xs">
-          <AlertCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-          <h3 className="text-base font-bold text-red-800">Failed to load requests</h3>
-          <p className="text-xs text-red-600 mt-1">{error}</p>
-          <button
-            onClick={fetchRequests}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
-          >
-            Retry
-          </button>
-        </div>
-      ) : requests.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-xs">
-          <div className="w-12 h-12 mx-auto rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-            <Inbox className="w-6 h-6" />
+      {/* Main Request Queue List */}
+      <GlassCard className="p-0 overflow-hidden">
+        {loading ? (
+          <div className="py-20 text-center space-y-3">
+            <Loader2 className="w-8 h-8 mx-auto animate-spin text-indigo-400" />
+            <p className="text-xs text-slate-400">Loading your assignment queue...</p>
           </div>
-          <h3 className="text-base font-bold text-gray-900">No requests assigned</h3>
-          <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            You currently have no service requests assigned to your queue. Any assignments made by campus administration will automatically appear here.
-          </p>
-        </div>
-      ) : filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-xs">
-          <Filter className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-          <h3 className="text-sm font-bold text-gray-900">No matching requests found</h3>
-          <p className="text-xs text-gray-500 mt-1">
-            No service requests matched your current search and filter criteria.
-          </p>
-          <button
-            onClick={clearFilters}
-            className="mt-4 inline-flex items-center space-x-1.5 px-3.5 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200 transition"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Clear Filters</span>
-          </button>
-        </div>
-      ) : (
-        /* Requests Table / Cards */
-        <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
-          {/* Desktop Table View */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50/80">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Ticket ID
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Title & Category
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Created / Updated
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {filteredRequests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
-                    onClick={() => {
-                      window.location.href = `/staff/requests/${req.id}`
-                    }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">
-                        {req.ticket_number}
-                      </span>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                        {req.title}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {req.category}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <PriorityBadge priority={req.priority} />
-                    </td>
-
-                    <td className="px-6 py-4 text-xs text-gray-600">
-                      <div className="flex items-center space-x-1 font-medium text-gray-800">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span>{req.location || 'Campus'}</span>
-                      </div>
-                      {(req.building || req.room_number) && (
-                        <div className="text-gray-400 text-[11px] pl-4 mt-0.5">
-                          {req.building ? `${req.building}` : ''}
-                          {req.room_number ? ` • Room ${req.room_number}` : ''}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <StatusBadge status={req.status} />
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                      <div>Created: {new Date(req.created_at).toLocaleDateString()}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">
-                        Updated: {new Date(req.updated_at).toLocaleDateString()}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
-                      <Link
-                        href={`/staff/requests/${req.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg font-semibold bg-gray-100 text-gray-700 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-2xs"
-                      >
-                        <span>View</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : error ? (
+          <div className="p-8 text-center space-y-2">
+            <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+            <p className="text-sm font-semibold text-white">Error Loading Requests</p>
+            <p className="text-xs text-slate-400">{error}</p>
           </div>
-
-          {/* Mobile & Tablet Card View */}
-          <div className="block lg:hidden divide-y divide-gray-100">
+        ) : filteredRequests.length === 0 ? (
+          <div className="py-16">
+            <EmptyState
+              icon={Inbox}
+              title={isFiltered ? "No matching tickets" : "No tickets in your queue"}
+              description={isFiltered ? "Try loosening your search terms or filters." : "You have completed all assigned tickets or haven't been assigned any new tasks yet."}
+              actionLabel={isFiltered ? "Clear Filters" : undefined}
+              onAction={isFiltered ? handleResetFilters : undefined}
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800/80">
             {filteredRequests.map((req) => (
               <Link
                 key={req.id}
                 href={`/staff/requests/${req.id}`}
-                className="block p-4 sm:p-5 hover:bg-slate-50 transition-colors"
+                className="block p-5 hover:bg-slate-900/60 transition-colors group"
               >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                    {req.ticket_number}
-                  </span>
-                  <div className="flex items-center space-x-1.5">
-                    <PriorityBadge priority={req.priority} />
-                    <StatusBadge status={req.status} />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-indigo-400 bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-800/60">
+                        {req.ticket_number || 'SR-0000'}
+                      </span>
+                      <PriorityBadge priority={req.priority} />
+                      <StatusBadge status={req.status} />
+                      <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-0.5 rounded-lg border border-slate-700/50">
+                        {req.category}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                      {req.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-400 line-clamp-1">
+                      {req.description}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400 pt-1">
+                      <span className="flex items-center space-x-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                        <span>
+                          {req.location || 'Campus'}
+                          {req.building ? ` • ${req.building}` : ''}
+                          {req.room_number ? ` • Room ${req.room_number}` : ''}
+                        </span>
+                      </span>
+
+                      <span className="flex items-center space-x-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Created: {new Date(req.created_at).toLocaleDateString()}</span>
+                      </span>
+
+                      {req.assigned_at && (
+                        <span className="flex items-center space-x-1.5 text-indigo-300">
+                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Assigned: {new Date(req.assigned_at).toLocaleDateString()}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <h3 className="text-base font-semibold text-gray-900 mb-1">
-                  {req.title}
-                </h3>
-
-                <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                  {req.description}
-                </p>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                  <span className="flex items-center space-x-1">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{req.location || 'Campus'} {req.building ? `(${req.building})` : ''}</span>
-                  </span>
-
-                  <span className="text-blue-600 font-semibold inline-flex items-center space-x-1">
-                    <span>Manage</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
+                  <div className="flex items-center self-end md:self-center">
+                    <span className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/60 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-sm">
+                      <span>Action Ticket</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </GlassCard>
     </div>
   )
 }
