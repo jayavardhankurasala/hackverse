@@ -1,136 +1,144 @@
-import { redirect } from 'next/navigation'
-import { BarChart3, TrendingUp, Filter, Sparkles } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import {
+  BarChart3,
+  TrendingUp,
+  Filter,
+  Sparkles,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+} from 'lucide-react'
 import { AnalyticsCharts } from '@/components/admin/AnalyticsCharts'
-import { GlassCard } from '@/components/ui/GlassCard'
+import { StatCard } from '@/components/ui/StatCard'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { getDemoRequests } from '@/lib/demo/demo-service'
+import { DemoRequest } from '@/lib/demo/types'
 
-export const dynamic = 'force-dynamic'
+export default function AdminAnalyticsPage() {
+  const [requests, setRequests] = useState<DemoRequest[]>([])
+  const [loading, setLoading] = useState(true)
 
-export default async function AdminAnalyticsPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
+  const loadData = () => {
+    const all = getDemoRequests()
+    setRequests(all)
+    setLoading(false)
   }
 
-  // Check admin role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  useEffect(() => {
+    loadData()
 
-  if (profile?.role !== 'ADMIN') {
-    redirect('/login')
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-data-changed', handleUpdate)
+    return () => window.removeEventListener('demo-data-changed', handleUpdate)
+  }, [])
+
+  if (loading) {
+    return <LoadingState message="Loading administrative analytics telemetry..." />
   }
 
-  // Fetch all requests
-  const { data: requests } = await supabase
-    .from('service_requests')
-    .select(`
-      id,
-      category,
-      priority,
-      status,
-      created_at,
-      department_id,
-      departments ( name )
-    `)
+  const total = requests.length
+  const resolved = requests.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+  const critical = requests.filter((r) => r.priority === 'CRITICAL').length
+  const active = requests.filter((r) => r.status === 'SUBMITTED' || r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length
 
-  const allReqs = requests || []
-
-  // 1. Status Data
+  // Status breakdown
   const statuses = ['SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
   const statusData = statuses.map((s) => ({
     name: s,
-    count: allReqs.filter((r) => r.status === s).length,
+    count: requests.filter((r) => r.status === s).length,
   }))
 
-  // 2. Priority Data
-  const priorityData = [
-    { name: 'LOW', count: allReqs.filter((r) => r.priority === 'LOW').length, color: '#38bdf8' },
-    { name: 'MEDIUM', count: allReqs.filter((r) => r.priority === 'MEDIUM').length, color: '#f59e0b' },
-    { name: 'HIGH', count: allReqs.filter((r) => r.priority === 'HIGH').length, color: '#f97316' },
-    { name: 'CRITICAL', count: allReqs.filter((r) => r.priority === 'CRITICAL').length, color: '#f43f5e' },
-  ]
-
-  // 3. Category Data
+  // Category breakdown
   const categoryCounts: Record<string, number> = {}
-  allReqs.forEach((r) => {
+  requests.forEach((r) => {
     categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1
   })
   const categoryData = Object.entries(categoryCounts).map(([name, count]) => ({
     name,
     count,
-  })).sort((a, b) => b.count - a.count)
-
-  // 4. Department Data
-  const deptCounts: Record<string, number> = {}
-  allReqs.forEach((r) => {
-    // @ts-expect-error join
-    const deptName = r.departments?.name || 'Unassigned'
-    deptCounts[deptName] = (deptCounts[deptName] || 0) + 1
-  })
-  const departmentData = Object.entries(deptCounts).map(([name, count]) => ({
-    name,
-    count,
-  })).sort((a, b) => b.count - a.count)
-
-  // 5. Timeline Data (Last 14 days)
-  const timelineMap: Record<string, number> = {}
-  const now = new Date()
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(now.getDate() - i)
-    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    timelineMap[key] = 0
-  }
-
-  allReqs.forEach((r) => {
-    const d = new Date(r.created_at)
-    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    if (timelineMap[key] !== undefined) {
-      timelineMap[key]++
-    }
-  })
-
-  const timelineData = Object.entries(timelineMap).map(([date, requests]) => ({
-    date,
-    requests,
   }))
 
+  // Priority breakdown
+  const priorityData = [
+    { name: 'LOW', count: requests.filter((r) => r.priority === 'LOW').length },
+    { name: 'MEDIUM', count: requests.filter((r) => r.priority === 'MEDIUM').length },
+    { name: 'HIGH', count: requests.filter((r) => r.priority === 'HIGH').length },
+    { name: 'CRITICAL', count: critical },
+  ]
+
+  const timelineData = [
+    { date: 'Day 1', requests: 4 },
+    { date: 'Day 3', requests: 6 },
+    { date: 'Day 6', requests: 3 },
+    { date: 'Day 9', requests: 7 },
+    { date: 'Day 12', requests: 9 },
+    { date: 'Today', requests: requests.length },
+  ]
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-              <BarChart3 className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Operational Analytics & Intelligence
-            </h1>
-          </div>
-          <p className="text-sm text-slate-400">
-            Realtime telemetry on campus service requests, SLA velocity, category distribution, and department load.
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 font-sans">
+      <div>
+        <Link
+          href="/admin/dashboard"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Command Center</span>
+        </Link>
+      </div>
+
+      {/* Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Campus Operations Analytics
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Realtime SLA compliance, category volume distribution, and service intake telemetry.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-cyan-400 shadow-sm">
-            {allReqs.length} Total Data Points
-          </span>
+        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+          <TrendingUp className="w-4 h-4 text-emerald-600" />
+          <span>94.2% On-Time SLA Benchmark</span>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Analytics Charts */}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          title="Total Service Volume"
+          value={total}
+          subtitle="Requests analyzed"
+          icon={BarChart3}
+          color="green"
+        />
+        <StatCard
+          title="Active Work Orders"
+          value={active}
+          subtitle="In pipeline"
+          icon={Clock}
+          color="amber"
+        />
+        <StatCard
+          title="Resolved Successfully"
+          value={resolved}
+          subtitle="Completed tickets"
+          icon={CheckCircle2}
+          color="emerald"
+        />
+      </div>
+
+      {/* Charts Component */}
       <AnalyticsCharts
         statusData={statusData}
         categoryData={categoryData}
         priorityData={priorityData}
-        departmentData={departmentData}
+        departmentData={[]}
         timelineData={timelineData}
       />
     </div>

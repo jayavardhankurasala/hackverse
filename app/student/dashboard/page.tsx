@@ -11,6 +11,9 @@ import {
   ArrowRight,
   Sparkles,
   Inbox,
+  AlertCircle,
+  ChevronRight,
+  Eye,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -19,92 +22,82 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingState } from '@/components/ui/LoadingState'
+import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
+import { DemoRequest, DemoUser } from '@/lib/demo/types'
 
 export default function StudentDashboard() {
-  const [userName, setUserName] = useState<string>('Student')
-  const [stats, setStats] = useState({ total: 0, submitted: 0, inProgress: 0, resolved: 0 })
-  const [recentRequests, setRecentRequests] = useState<any[]>([])
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
+  const [stats, setStats] = useState({ total: 0, pending: 0, inProgress: 0, resolved: 0 })
+  const [recentRequests, setRecentRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
 
+  const loadData = () => {
+    const demoUser = getCurrentDemoUser()
+    setCurrentUser(demoUser)
+
+    // Load requests for student from demo service
+    const reqs = getStudentRequests(demoUser.id)
+    setStats({
+      total: reqs.length,
+      pending: reqs.filter((r) => r.status === 'SUBMITTED' || r.status === 'ASSIGNED').length,
+      inProgress: reqs.filter((r) => r.status === 'IN_PROGRESS').length,
+      resolved: reqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
+    })
+    setRecentRequests(reqs.slice(0, 6))
+    setLoading(false)
+  }
+
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+    loadData()
 
-        // Fetch student profile for personalized greeting
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', user.id)
-          .maybeSingle()
+    const handleDataChange = () => loadData()
+    window.addEventListener('demo-user-changed', handleDataChange)
+    window.addEventListener('demo-data-changed', handleDataChange)
 
-        if (profile?.full_name) {
-          setUserName(profile.full_name.split(' ')[0])
-        }
-
-        // Fetch requests
-        const { data: requests } = await supabase
-          .from('service_requests')
-          .select('status, id, ticket_number, title, category, priority, created_at, location, building, room_number')
-          .eq('created_by', user.id)
-          .order('created_at', { ascending: false })
-
-        if (requests) {
-          setStats({
-            total: requests.length,
-            submitted: requests.filter((r) => r.status === 'SUBMITTED').length,
-            inProgress: requests.filter((r) => r.status === 'IN_PROGRESS').length,
-            resolved: requests.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
-          })
-          setRecentRequests(requests.slice(0, 6))
-        }
-      } catch {
-        // Fallback
-      } finally {
-        setLoading(false)
-      }
+    return () => {
+      window.removeEventListener('demo-user-changed', handleDataChange)
+      window.removeEventListener('demo-data-changed', handleDataChange)
     }
-    fetchData()
   }, [])
 
   if (loading) {
     return <LoadingState message="Loading your campus service dashboard..." />
   }
 
+  const firstName = currentUser?.name?.split(' ')[0] || 'Student'
+
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-8 pb-12 font-sans">
       {/* Top Welcome Header & Quick Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/70 border border-blue-800/60 text-xs font-semibold text-blue-300 mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Campus Service Desk</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Good morning, {userName}
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Good morning, {firstName}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Track your open maintenance tickets and submit new facilities requests.
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Track your campus service requests and stay updated.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <Link
             href="/student/requests"
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs"
           >
-            <ClipboardList className="w-4 h-4 text-slate-400" />
-            <span>My Requests</span>
+            <ClipboardList className="w-4 h-4 text-slate-500" />
+            <span>View All</span>
           </Link>
 
           <Link
             href="/student/requests/new"
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/25 border border-blue-400/30 transition-all flex items-center gap-2 hover:scale-[1.02]"
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition-all flex items-center gap-1.5"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Service Request</span>
+            <span>Report a Problem</span>
           </Link>
         </div>
       </div>
@@ -114,99 +107,125 @@ export default function StudentDashboard() {
         <StatCard
           title="Total Requests"
           value={stats.total}
-          subtitle="All lifetime submissions"
+          subtitle="All submitted requests"
           icon={ClipboardList}
+          color="green"
+        />
+
+        <StatCard
+          title="Pending"
+          value={stats.pending}
+          subtitle="Awaiting technician assignment"
+          icon={Clock}
           color="blue"
         />
-        <StatCard
-          title="Submitted"
-          value={stats.submitted}
-          subtitle="Awaiting technician dispatch"
-          icon={Clock}
-          color="amber"
-        />
+
         <StatCard
           title="In Progress"
           value={stats.inProgress}
-          subtitle="Technician actively working"
+          subtitle="Actively being serviced"
           icon={PlayCircle}
-          color="purple"
+          color="amber"
         />
+
         <StatCard
-          title="Resolved / Closed"
+          title="Resolved"
           value={stats.resolved}
-          subtitle="Completed service requests"
+          subtitle="Successfully completed"
           icon={CheckCircle2}
           color="emerald"
         />
       </div>
 
       {/* Recent Requests Section */}
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-slate-800/80 flex items-center justify-between">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-white tracking-tight">Recent Service Requests</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Your most recently logged maintenance issues</p>
+            <h2 className="text-base font-bold text-slate-900">Recent Service Requests</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live status updates on your campus maintenance tickets
+            </p>
           </div>
           <Link
             href="/student/requests"
-            className="text-xs font-semibold text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
           >
-            <span>View all</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <span>See full history</span>
+            <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {recentRequests.length === 0 ? (
-          <div className="p-8">
+          <div className="p-8 text-center">
             <EmptyState
-              icon={Inbox}
-              title="No service requests yet"
-              description="Have an electrical issue, plumbing repair, or IT malfunction? Create your first ticket to dispatch campus staff."
-              actionLabel="Create Service Request"
+              title="No Requests Yet"
+              description="You haven't submitted any service requests yet."
+              actionLabel="Report a Problem"
               actionHref="/student/requests/new"
             />
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/60">
-            {recentRequests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/student/requests/${req.id}`}
-                className="block p-4 sm:p-5 hover:bg-slate-800/40 transition-colors group"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-mono text-xs font-bold text-blue-400">
-                        {req.ticket_number}
-                      </span>
-                      <span className="text-slate-600">&bull;</span>
-                      <h3 className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-6">Ticket ID</th>
+                  <th className="py-3 px-6">Problem Title</th>
+                  <th className="py-3 px-6">Category</th>
+                  <th className="py-3 px-6">Priority</th>
+                  <th className="py-3 px-6">Status</th>
+                  <th className="py-3 px-6">Submitted</th>
+                  <th className="py-3 px-6 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentRequests.map((req) => (
+                  <tr
+                    key={req.id}
+                    className="hover:bg-slate-50/80 transition-colors group"
+                  >
+                    <td className="py-3.5 px-6 font-mono font-bold text-emerald-700">
+                      {req.ticketNumber}
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <div className="font-semibold text-slate-900 line-clamp-1 max-w-xs">
                         {req.title}
-                      </h3>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Category: <span className="text-slate-300">{req.category}</span>
-                      {req.location && (
-                        <>
-                          {' '}&bull; Location: <span className="text-slate-300">{req.location}</span>
-                        </>
-                      )}
-                      {' '}&bull; Logged: {new Date(req.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 self-start sm:self-center shrink-0">
-                    <PriorityBadge priority={req.priority} />
-                    <StatusBadge status={req.status} />
-                  </div>
-                </div>
-              </Link>
-            ))}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {req.location} {req.room ? `• Room ${req.room}` : ''}
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-6 font-medium text-slate-600">
+                      {req.category}
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <PriorityBadge priority={req.priority} />
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <StatusBadge status={req.status} />
+                    </td>
+                    <td className="py-3.5 px-6 text-slate-500 whitespace-nowrap">
+                      {new Date(req.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                      <Link
+                        href={`/student/requests/${req.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </GlassCard>
+      </div>
     </div>
   )
 }

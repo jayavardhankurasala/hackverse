@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Sparkles,
   Loader2,
@@ -17,29 +18,50 @@ import {
   FileText,
   MapPin,
   Building,
-  Hash,
+  CheckCircle2,
+  Eye,
+  ArrowRight,
+  Shield,
+  User,
+  Wrench,
 } from 'lucide-react'
-import { createServiceRequest } from '@/actions/requests'
 import { requestAIAnalysis } from '@/actions/ai'
 import { AIRecommendation } from '@/lib/ai/gemini'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
-import { GlassCard } from '@/components/ui/GlassCard'
+import { getCurrentDemoUser, createDemoRequest } from '@/lib/demo/demo-service'
+import { ServiceCategory, RequestPriority } from '@/lib/demo/types'
 
 const requestSchema = z.object({
-  title: z.string().min(5, 'Title must be at least 5 characters'),
-  description: z.string().min(10, 'Description must be at least 10 characters'),
+  title: z.string().min(3, 'Title must be at least 3 characters'),
+  description: z.string().min(8, 'Description must be at least 8 characters'),
   category: z.string().min(1, 'Category is required'),
   priority: z.string().min(1, 'Priority is required'),
-  location: z.string().min(1, 'Location is required'),
-  building: z.string().optional(),
-  roomNumber: z.string().optional(),
+  building: z.string().min(1, 'Building is required'),
+  room: z.string().optional(),
+  location: z.string().min(1, 'Location detail is required'),
 })
 
 type RequestFormValues = z.infer<typeof requestSchema>
 
+const CATEGORIES: ServiceCategory[] = [
+  'IT Support',
+  'Electrical',
+  'Plumbing',
+  'Maintenance',
+  'Hostel',
+  'Cleaning',
+  'Transport',
+  'Administration',
+]
+
+const PRIORITIES: RequestPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+
 export default function NewRequestPage() {
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+  const currentUser = getCurrentDemoUser()
+
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Attachment State
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -52,6 +74,9 @@ export default function NewRequestPage() {
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiApplied, setAiApplied] = useState(false)
 
+  // Success State
+  const [createdTicket, setCreatedTicket] = useState<{ id: string; ticketNumber: string } | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -61,19 +86,23 @@ export default function NewRequestPage() {
   } = useForm<RequestFormValues>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
-      category: 'Maintenance',
-      priority: 'LOW',
-      location: '',
-      building: '',
-      roomNumber: '',
+      title: '',
+      description: '',
+      category: 'IT Support',
+      priority: 'HIGH',
+      building: 'Hostel Block A',
+      room: 'A-204',
+      location: 'Hostel Block A, 2nd Floor',
     },
   })
 
   const currentTitle = watch('title') || ''
   const currentDescription = watch('description') || ''
   const currentLocation = watch('location') || ''
-  const currentCategory = watch('category')
-  const currentPriority = watch('priority')
+  const currentCategory = watch('category') as ServiceCategory
+  const currentPriority = watch('priority') as RequestPriority
+  const currentBuilding = watch('building') || ''
+  const currentRoom = watch('room') || ''
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
@@ -81,7 +110,7 @@ export default function NewRequestPage() {
     if (!file) return
 
     if (file.size > 5 * 1024 * 1024) {
-      setFileError('File size exceeds the 5MB limit. Please upload a smaller image.')
+      setFileError('File size exceeds 5MB limit. Please upload a smaller image.')
       return
     }
 
@@ -105,15 +134,28 @@ export default function NewRequestPage() {
     setFileError(null)
   }
 
-  // Run AI Analysis
+  // Pre-fill demo scenario: Wi-Fi issue
+  const handleLoadDemoPreset = () => {
+    setValue('title', 'Wi-Fi not working in Hostel Block A')
+    setValue(
+      'description',
+      'The Wi-Fi connection in my room keeps disconnecting. The issue started yesterday and several students on the same floor are experiencing the same problem.'
+    )
+    setValue('building', 'Hostel Block A')
+    setValue('room', 'A-204')
+    setValue('location', 'Hostel Block A, Room A-204')
+    setFilePreview('https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=600&q=80')
+  }
+
+  // Analyze with AI
   const handleAIAnalysis = async () => {
     if (currentTitle.trim().length < 3) {
-      setAiError('Please enter a title (at least 3 characters) before analyzing with AI.')
+      setAiError('Please enter an issue title before analyzing with AI.')
       return
     }
 
     if (currentDescription.trim().length < 5) {
-      setAiError('Please describe the issue in more detail before analyzing with AI.')
+      setAiError('Please provide a brief description before analyzing with AI.')
       return
     }
 
@@ -126,7 +168,7 @@ export default function NewRequestPage() {
       const res = await requestAIAnalysis({
         title: currentTitle,
         description: currentDescription,
-        location: currentLocation,
+        location: `${currentBuilding} ${currentRoom} ${currentLocation}`,
         currentCategory,
         currentPriority,
       })
@@ -143,7 +185,7 @@ export default function NewRequestPage() {
     }
   }
 
-  // Apply AI recommendations to form
+  // Apply AI recommendations to form (advisory, editable)
   const handleApplyAI = () => {
     if (!aiResult) return
     setValue('category', aiResult.category)
@@ -155,340 +197,457 @@ export default function NewRequestPage() {
     setLoading(true)
     setError(null)
 
-    const formData = new FormData()
-    formData.append('title', data.title)
-    formData.append('description', data.description)
-    formData.append('category', data.category)
-    formData.append('priority', data.priority)
-    formData.append('location', data.location)
-    if (data.building) formData.append('building', data.building)
-    if (data.roomNumber) formData.append('roomNumber', data.roomNumber)
+    try {
+      // Create request in clean demo service layer
+      const created = createDemoRequest({
+        title: data.title,
+        description: data.description,
+        category: data.category as ServiceCategory,
+        priority: data.priority as RequestPriority,
+        location: data.location,
+        building: data.building,
+        room: data.room,
+        imageUrl: filePreview || undefined,
+        studentId: currentUser.id,
+        studentName: currentUser.name,
+        aiRecommendation: aiResult
+          ? {
+              category: aiResult.category as ServiceCategory,
+              priority: aiResult.priority as RequestPriority,
+              department: aiResult.department,
+              suggestedStaff: aiResult.department === 'IT Support' ? 'Vikram Rao' : 'Suresh Kumar',
+              summary: aiResult.summary,
+              reasoning: aiResult.reasoning,
+            }
+          : undefined,
+      })
 
-    if (aiResult) {
-      formData.append('aiCategory', aiResult.category)
-      formData.append('aiPriority', aiResult.priority)
-      formData.append('aiSummary', aiResult.summary)
-    }
-
-    if (selectedFile) {
-      formData.append('image', selectedFile)
-    }
-
-    const result = await createServiceRequest(formData)
-    if (result?.error) {
-      setError(result.error)
+      setCreatedTicket({
+        id: created.id,
+        ticketNumber: created.ticketNumber,
+      })
+    } catch (e: any) {
+      setError(e?.message || 'Failed to submit service request. Please try again.')
+    } finally {
       setLoading(false)
     }
   }
 
+  // Success Confirmation Screen
+  if (createdTicket) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4 font-sans">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-lg space-y-6 animate-in fade-in zoom-in-95">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+            <CheckCircle2 className="w-9 h-9" />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">
+              Request Submitted Successfully
+            </h1>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-mono font-bold text-emerald-800">
+              <span>Ticket ID:</span>
+              <span className="text-emerald-700">{createdTicket.ticketNumber}</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
+              Your service request has been logged and routed to the central campus facilities queue. Technicians will be assigned based on severity SLA.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href={`/student/requests/${createdTicket.id}`}
+              className="px-5 py-2.5 rounded-xl font-semibold text-xs text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Track Ticket Status</span>
+            </Link>
+            <Link
+              href="/student/dashboard"
+              className="px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition flex items-center justify-center gap-2"
+            >
+              <span>Back to Dashboard</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      {/* Navigation Breadcrumb */}
-      <div>
+    <div className="max-w-3xl mx-auto space-y-6 pb-16 font-sans">
+      {/* Navigation Breadcrumb & Preset Button */}
+      <div className="flex items-center justify-between">
         <Link
           href="/student/dashboard"
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Student Dashboard</span>
         </Link>
+
+        <button
+          type="button"
+          onClick={handleLoadDemoPreset}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+          title="Autofill the Wi-Fi Issue Demo Scenario"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Load Demo Scenario (Wi-Fi Issue)</span>
+        </button>
       </div>
 
-      {/* Main Glass Card */}
-      <GlassCard glow="blue" className="p-6 sm:p-8 space-y-6">
-        <div className="border-b border-slate-800/80 pb-5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/70 border border-blue-800/60 text-xs font-semibold text-blue-300 mb-2">
-            <FileText className="w-3.5 h-3.5 text-blue-400" />
-            <span>New Ticket Submission</span>
+      {/* Main Container Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="p-6 sm:p-8 border-b border-slate-100 bg-linear-to-r from-emerald-50/40 via-white to-slate-50/40">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+            <span>New Service Request</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Create Campus Service Request
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Create Service Request
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Submit a campus maintenance, electrical, or facilities issue. Campus technicians will be automatically triaged and dispatched.
+          <p className="text-xs text-slate-500 mt-1">
+            Tell us what needs attention and we'll route it to the right team.
           </p>
         </div>
 
         {error && (
-          <div className="p-4 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-center space-x-2.5">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          <div className="mx-6 sm:mx-8 mt-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2 text-xs text-rose-700">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 sm:p-8 space-y-8">
+          {/* SECTION 1: REQUEST DETAILS */}
           <div className="space-y-4">
-            {/* Title */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                1. Request Details
+              </h2>
+              <span className="text-[11px] text-slate-400">Step 1 of 3</span>
+            </div>
+
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Issue Title <span className="text-rose-400">*</span>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Problem Title <span className="text-rose-500">*</span>
               </label>
               <input
                 {...register('title')}
-                placeholder="e.g., Broken ceiling light in room 302 or Wi-Fi connectivity lost"
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                type="text"
+                placeholder="e.g. Wi-Fi not working in Hostel Block A"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
-              {errors.title && <p className="text-rose-400 text-xs mt-1 font-medium">{errors.title.message}</p>}
+              {errors.title && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.title.message}</p>
+              )}
             </div>
 
-            {/* Description */}
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                  Detailed Description <span className="text-rose-400">*</span>
-                </label>
-                <span className="text-[11px] text-slate-500">Be as specific as possible</span>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Detailed Description <span className="text-rose-500">*</span>
+              </label>
               <textarea
                 {...register('description')}
                 rows={4}
-                placeholder="Explain what is broken, when it started, and any symptoms or safety risks..."
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all leading-relaxed"
+                placeholder="Explain the issue, when it started, and any symptoms or specific equipment affected..."
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
-              {errors.description && <p className="text-rose-400 text-xs mt-1 font-medium">{errors.description.message}</p>}
+              {errors.description && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.description.message}</p>
+              )}
             </div>
 
-            {/* AI Triage Trigger */}
-            <div className="pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Category
+                </label>
+                <select
+                  {...register('category')}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Priority SLA
+                </label>
+                <select
+                  {...register('priority')}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
+                >
+                  {PRIORITIES.map((pri) => (
+                    <option key={pri} value={pri}>
+                      {pri}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* AI ASSISTANCE PANEL */}
+          <div className="p-5 rounded-2xl bg-linear-to-r from-emerald-50/70 via-slate-50 to-emerald-50/40 border border-emerald-200/80 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-2xs">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900">
+                    AI Assistance Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Auto-evaluates priority SLA, categorization, and optimal technician dispatch
+                  </p>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={handleAIAnalysis}
                 disabled={isAnalyzingAI}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-900/60 to-indigo-900/60 hover:from-blue-800/80 hover:to-indigo-800/80 text-blue-200 border border-blue-500/40 rounded-xl text-xs font-semibold transition-all shadow-md shadow-blue-500/10 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 transition-all shadow-2xs disabled:opacity-60 cursor-pointer"
               >
                 {isAnalyzingAI ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                    <span>Analyzing with Gemini AI...</span>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                    <span>Analyzing Request...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Triage with Gemini AI</span>
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Analyze with AI</span>
                   </>
                 )}
               </button>
             </div>
 
-            {/* AI Non-blocking Error */}
             {aiError && (
-              <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs text-amber-300 flex items-start space-x-2">
-                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                <Info className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>{aiError}</span>
               </div>
             )}
 
-            {/* AI Result Card */}
             {aiResult && (
-              <div className="p-4 bg-gradient-to-br from-blue-950/40 via-indigo-950/30 to-slate-900/60 border border-blue-500/30 rounded-2xl space-y-3.5">
+              <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-2xs space-y-3 animate-in fade-in-50">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-blue-300 font-bold text-xs">
-                    <Sparkles className="w-4 h-4 text-blue-400" />
-                    <span>Gemini AI Intelligent Triage</span>
-                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    AI Triage Recommendations
+                  </span>
+                  <span className="text-[10px] text-slate-400">Advisory • Fully Editable</span>
+                </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Category</span>
+                    <span className="font-bold text-slate-800">{aiResult.category}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Priority</span>
+                    <PriorityBadge priority={aiResult.priority} />
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Department</span>
+                    <span className="font-bold text-slate-800">{aiResult.department}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Suggested Staff</span>
+                    <span className="font-bold text-emerald-700">
+                      {aiResult.department === 'IT Support' ? 'Vikram Rao' : 'Suresh Kumar'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-xs space-y-1 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
+                  <p className="text-slate-700">
+                    <strong className="text-slate-900">Summary: </strong>
+                    {aiResult.summary}
+                  </p>
+                  <p className="text-slate-600 text-[11px]">
+                    <strong className="text-slate-800">Reasoning: </strong>
+                    {aiResult.reasoning}
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-1">
                   <button
                     type="button"
                     onClick={handleApplyAI}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-all shadow-xs"
+                    disabled={aiApplied}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 cursor-pointer"
                   >
-                    {aiApplied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Applied to Form!</span>
-                      </>
-                    ) : (
-                      <span>Apply Suggestions</span>
-                    )}
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{aiApplied ? 'Recommendations Applied' : 'Apply Recommendations'}</span>
                   </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                  <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Recommended Category</span>
-                    <span className="font-bold text-white mt-1 block">{aiResult.category}</span>
-                  </div>
-
-                  <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Recommended Priority</span>
-                    <span className="mt-1 inline-block">
-                      <PriorityBadge priority={aiResult.priority} />
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Target Department</span>
-                    <span className="font-semibold text-white mt-1 block">{aiResult.department}</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1">
-                  <p><span className="font-semibold text-slate-200">AI Summary:</span> {aiResult.summary}</p>
-                  <p className="text-[11px] text-slate-400 italic"><span className="font-semibold text-slate-300">Reasoning:</span> {aiResult.reasoning}</p>
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Category & Priority Selectors */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Category <span className="text-rose-400">*</span>
-                </label>
-                <select
-                  {...register('category')}
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition font-medium"
-                >
-                  <option value="IT Support" className="bg-slate-900">IT Support</option>
-                  <option value="Electrical" className="bg-slate-900">Electrical</option>
-                  <option value="Plumbing" className="bg-slate-900">Plumbing</option>
-                  <option value="Maintenance" className="bg-slate-900">Maintenance</option>
-                  <option value="Hostel" className="bg-slate-900">Hostel</option>
-                  <option value="Transport" className="bg-slate-900">Transport</option>
-                  <option value="Cleaning" className="bg-slate-900">Cleaning</option>
-                  <option value="Administration" className="bg-slate-900">Administration</option>
-                </select>
-                {errors.category && <p className="text-rose-400 text-xs mt-1 font-medium">{errors.category.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Priority <span className="text-rose-400">*</span>
-                </label>
-                <select
-                  {...register('priority')}
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition font-medium"
-                >
-                  <option value="LOW" className="bg-slate-900">LOW (Routine / Non-urgent)</option>
-                  <option value="MEDIUM" className="bg-slate-900">MEDIUM (Standard issue)</option>
-                  <option value="HIGH" className="bg-slate-900">HIGH (Significant disruption)</option>
-                  <option value="CRITICAL" className="bg-slate-900">CRITICAL (Emergency / Hazard)</option>
-                </select>
-                {errors.priority && <p className="text-rose-400 text-xs mt-1 font-medium">{errors.priority.message}</p>}
-              </div>
-            </div>
-
-            {/* Location Fields */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                <span>General Location / Area</span> <span className="text-rose-400">*</span>
-              </label>
-              <input
-                {...register('location')}
-                placeholder="e.g., North Campus, Hostel Block B, Main Library 2nd floor"
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-              />
-              {errors.location && <p className="text-rose-400 text-xs mt-1 font-medium">{errors.location.message}</p>}
+          {/* SECTION 2: LOCATION */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                2. Location & Facility Details
+              </h2>
+              <span className="text-[11px] text-slate-400">Step 2 of 3</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
-                  <Building className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Building (Optional)</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Building / Block <span className="text-rose-500">*</span>
                 </label>
                 <input
                   {...register('building')}
-                  placeholder="e.g., Ramanujan Hall"
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  type="text"
+                  placeholder="e.g. Hostel Block A"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
+                {errors.building && (
+                  <p className="mt-1 text-xs text-rose-600 font-medium">{errors.building.message}</p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
-                  <Hash className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Room Number (Optional)</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Room / Lab Number
                 </label>
                 <input
-                  {...register('roomNumber')}
-                  placeholder="e.g., 204"
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-950/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  {...register('room')}
+                  type="text"
+                  placeholder="e.g. A-204"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
               </div>
             </div>
 
-            {/* Attachment Dropzone */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Attachment Photo (Optional)
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Exact Location Notes <span className="text-rose-500">*</span>
               </label>
-
-              {fileError && (
-                <div className="mb-2 p-2.5 bg-rose-950/50 border border-rose-800/80 rounded-lg text-xs text-rose-300 flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>{fileError}</span>
-                </div>
-              )}
-
-              {filePreview ? (
-                <div className="relative p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={filePreview}
-                      alt="Attachment Preview"
-                      className="w-14 h-14 object-cover rounded-lg border border-slate-700"
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-white truncate max-w-xs">{selectedFile?.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedFile ? (selectedFile.size / 1024 / 1024).toFixed(2) : 0} MB &bull; Ready to upload
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={removeFile}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/40 hover:bg-slate-900/40 hover:border-slate-700 cursor-pointer transition group">
-                  <Upload className="w-6 h-6 text-slate-500 group-hover:text-blue-400 transition" />
-                  <span className="text-xs font-semibold text-slate-300 mt-2">
-                    Click to browse or drop photo here
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-0.5">
-                    JPEG, PNG, or WebP &bull; Maximum 5MB
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/jpeg, image/png, image/webp"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
+              <input
+                {...register('location')}
+                type="text"
+                placeholder="e.g. 2nd Floor corridor opposite water cooler"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+              />
+              {errors.location && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.location.message}</p>
               )}
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-4 border-t border-slate-800/80 flex items-center justify-end space-x-3">
+          {/* SECTION 3: ATTACHMENT */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                3. Photo Attachment
+              </h2>
+              <span className="text-[11px] text-slate-400">Step 3 of 3</span>
+            </div>
+
+            {fileError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{fileError}</span>
+              </div>
+            )}
+
+            {filePreview ? (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Attachment Preview:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition">
+                      <span>Replace</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={removeFile}
+                      className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-w-xs overflow-hidden rounded-lg border border-slate-200 shadow-2xs">
+                  <img
+                    src={filePreview}
+                    alt="Upload preview"
+                    className="w-full h-44 object-cover"
+                  />
+                </div>
+              </div>
+            ) : (
+              <label className="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-emerald-50/20 transition-all">
+                <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                <span className="text-xs font-semibold text-slate-800">
+                  Upload photo of the issue
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1">
+                  Supports JPEG, PNG, WebP up to 5MB
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+
+          {/* SUBMIT BUTTON */}
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
             <Link
               href="/student/dashboard"
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-900 border border-slate-800 transition"
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition"
             >
               Cancel
             </Link>
+
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center space-x-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition-all shadow-lg shadow-blue-600/25 border border-blue-400/30 disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Submitting Ticket...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Submitting Request...</span>
                 </>
               ) : (
-                <span>Submit Service Request</span>
+                <>
+                  <span>Submit Request</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
               )}
             </button>
           </div>
         </form>
-      </GlassCard>
+      </div>
     </div>
   )
 }

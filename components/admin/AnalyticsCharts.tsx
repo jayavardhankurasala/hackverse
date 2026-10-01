@@ -8,7 +8,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   PieChart,
   Pie,
   Cell,
@@ -16,35 +15,43 @@ import {
   Area,
   CartesianGrid,
 } from 'recharts'
-import { GlassCard } from '@/components/ui/GlassCard'
-import { Sparkles, BarChart3, PieChart as PieIcon, Activity } from 'lucide-react'
+import { Activity, BarChart3, PieChart as PieIcon, Layers } from 'lucide-react'
 
 interface AnalyticsChartsProps {
   statusData: { name: string; count: number }[]
   categoryData: { name: string; count: number }[]
-  priorityData: { name: string; count: number; color: string }[]
+  priorityData: { name: string; count: number; color?: string }[]
   departmentData: { name: string; count: number }[]
   timelineData: { date: string; requests: number }[]
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  SUBMITTED: '#64748b',
-  ASSIGNED: '#818cf8',
-  IN_PROGRESS: '#38bdf8',
-  RESOLVED: '#34d399',
-  CLOSED: '#475569',
+  SUBMITTED: '#64748B',
+  ASSIGNED: '#818CF8',
+  IN_PROGRESS: '#F59E0B',
+  RESOLVED: '#16A34A',
+  CLOSED: '#334155',
 }
 
-const CATEGORY_COLORS = ['#38bdf8', '#818cf8', '#f472b6', '#fb923c', '#34d399', '#22d3ee', '#a78bfa', '#facc15']
+const CATEGORY_COLORS = [
+  '#16A34A',
+  '#2563EB',
+  '#F59E0B',
+  '#8B5CF6',
+  '#0D9488',
+  '#E11D48',
+  '#64748B',
+  '#475569',
+]
 
-// Custom Dark Tooltip
+// Professional Light Tooltip
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-slate-900/90 border border-slate-700/80 px-3.5 py-2.5 rounded-xl shadow-xl backdrop-blur-md text-xs">
-        <p className="font-bold text-white mb-1">{label || payload[0]?.name}</p>
-        <p className="text-cyan-400 font-semibold">
-          Count: <span className="text-white">{payload[0]?.value}</span>
+      <div className="bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-md text-xs font-sans">
+        <p className="font-bold text-slate-800 mb-0.5">{label || payload[0]?.name}</p>
+        <p className="text-emerald-700 font-semibold">
+          Count: <span className="text-slate-900">{payload[0]?.value}</span>
         </p>
       </div>
     )
@@ -60,185 +67,148 @@ export function AnalyticsCharts({
   timelineData,
 }: AnalyticsChartsProps) {
   return (
-    <div className="space-y-6">
-      {/* Row 1: Timeline Over Time (Full width) */}
-      <GlassCard className="p-6">
+    <div className="space-y-6 font-sans">
+      {/* Row 1: Intake Timeline */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <Activity className="w-4 h-4 text-cyan-400" />
+            <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+              <Activity className="w-4 h-4 text-emerald-600" />
               <span>Campus Service Intake Timeline (Last 14 Days)</span>
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Daily volume of newly logged student service requests</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Daily volume of newly logged student service requests
+            </p>
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
-            Realtime Velocity
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+            Intake Velocity
           </span>
         </div>
 
-        <div className="h-72 w-full pt-2">
+        <div className="h-64 w-full pt-2">
           {timelineData.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
+            <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
               No timeline intake activity recorded yet.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorReqsDark" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                  <linearGradient id="colorReqsLight" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#16A34A" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#16A34A" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={{ stroke: '#E2E8F0' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748B' }} axisLine={{ stroke: '#E2E8F0' }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="requests" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#colorReqsDark)" />
+                <Area
+                  type="monotone"
+                  dataKey="requests"
+                  stroke="#16A34A"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorReqsLight)"
+                />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
-      </GlassCard>
-
-      {/* Row 2: Status & Priority (2 columns) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Distribution */}
-        <GlassCard className="p-6">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4 text-indigo-400" />
-              <span>Requests by Lifecycle Status</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Active stage breakdown across platform operations</p>
-          </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statusData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {statusData.map((entry) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || '#6366f1'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
-
-        {/* Priority Distribution */}
-        <GlassCard className="p-6">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <PieIcon className="w-4 h-4 text-rose-400" />
-              <span>Priority Level Distribution</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Urgency rating allocated across active campus tickets</p>
-          </div>
-          <div className="h-64 w-full flex items-center justify-center">
-            {priorityData.every((p) => p.count === 0) ? (
-              <div className="text-xs text-slate-500 italic">No tickets to display priority breakdown.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Pie
-                    data={priorityData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="count"
-                  >
-                    {priorityData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} stroke="#0f172a" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={(value) => <span className="text-xs text-slate-300 font-medium">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </GlassCard>
       </div>
 
-      {/* Row 3: Category & Department (2 columns) */}
+      {/* Row 2: Category Breakdown & Status Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Category Breakdown */}
-        <GlassCard className="p-6">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4 text-cyan-400" />
-              <span>Top Request Categories</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Most common facility and infrastructure demands</p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <BarChart3 className="w-4 h-4 text-emerald-600" />
+                <span>Requests by Service Category</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Distribution across campus trade disciplines</p>
+            </div>
           </div>
+
           <div className="h-64 w-full">
             {categoryData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
-                No category data available.
+              <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
+                No category data available yet.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={categoryData.slice(0, 6)}
-                  layout="vertical"
-                  margin={{ top: 5, right: 20, left: 30, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#334155' }} />
+                <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#64748B' }} axisLine={{ stroke: '#E2E8F0' }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={{ stroke: '#E2E8F0' }} width={80} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                    {categoryData.slice(0, 6).map((entry, index) => (
-                      <Cell key={`cat-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#16A34A">
+                    {categoryData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
-        </GlassCard>
+        </div>
 
-        {/* Department Volume */}
-        <GlassCard className="p-6">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4 text-purple-400" />
-              <span>Volume by Campus Department</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Workload distribution across maintenance divisions</p>
+        {/* Priority & Status Breakdown */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                <PieIcon className="w-4 h-4 text-emerald-600" />
+                <span>Work Order Status Lifecycle</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Tickets by current resolution state</p>
+            </div>
           </div>
-          <div className="h-64 w-full">
-            {departmentData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
-                No departmental allocations recorded.
-              </div>
+
+          <div className="h-64 w-full flex items-center justify-center">
+            {statusData.length === 0 ? (
+              <div className="text-xs text-slate-400 italic">No status data available yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={departmentData}
-                  layout="vertical"
-                  margin={{ top: 5, right: 20, left: 40, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: '#334155' }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#334155' }} />
+                <PieChart>
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" fill="#818cf8" radius={[0, 6, 6, 0]} />
-                </BarChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="count"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell
+                        key={`pie-cell-${index}`}
+                        fill={STATUS_COLORS[entry.name] || '#64748B'}
+                      />
+                    ))}
+                  </Pie>
+                </PieChart>
               </ResponsiveContainer>
             )}
           </div>
-        </GlassCard>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-[11px] font-medium text-slate-600">
+            {statusData.map((s) => (
+              <div key={s.name} className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: STATUS_COLORS[s.name] || '#64748B' }}
+                />
+                <span>
+                  {s.name}: <strong>{s.count}</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

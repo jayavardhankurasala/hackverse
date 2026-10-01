@@ -1,252 +1,139 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { 
-  Search, 
-  RotateCcw, 
-  ArrowRight, 
-  MapPin, 
-  Filter, 
-  UserCheck, 
-  Building2, 
-  Loader2,
-  AlertCircle,
-  Inbox,
-  User,
+import {
+  Search,
+  Filter,
+  RotateCcw,
+  ArrowRight,
+  MapPin,
+  Eye,
+  CheckCircle2,
   ShieldCheck,
-  Layers,
-  Sparkles
+  Sparkles,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { GlassCard } from '@/components/ui/GlassCard'
 import { EmptyState } from '@/components/ui/EmptyState'
-
-interface RequestRecord {
-  id: string
-  ticket_number: string
-  title: string
-  description: string
-  category: string
-  priority: string
-  status: string
-  location?: string | null
-  building?: string | null
-  room_number?: string | null
-  created_at: string
-  updated_at: string
-  department_id?: string | null
-  assigned_to?: string | null
-  departments?: any
-  assignee?: { full_name: string } | null
-}
+import { LoadingState } from '@/components/ui/LoadingState'
+import { getDemoRequests } from '@/lib/demo/demo-service'
+import { DemoRequest } from '@/lib/demo/types'
 
 export default function AdminRequestsPage() {
-  const [requests, setRequests] = useState<RequestRecord[]>([])
-  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [requests, setRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Filters
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [priorityFilter, setPriorityFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
-  const [deptFilter, setDeptFilter] = useState('ALL')
 
-  const fetchRequests = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('Authentication required')
-        setLoading(false)
-        return
-      }
-
-      // Fetch all departments for filter
-      const { data: deptData } = await supabase.from('departments').select('id, name')
-      if (deptData) setDepartments(deptData)
-
-      // Fetch all service requests with department
-      const { data: reqData, error: reqErr } = await supabase
-        .from('service_requests')
-        .select(`
-          id,
-          ticket_number,
-          title,
-          description,
-          category,
-          priority,
-          status,
-          location,
-          building,
-          room_number,
-          created_at,
-          updated_at,
-          department_id,
-          assigned_to,
-          departments ( name )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (reqErr) {
-        setError(reqErr.message)
-        setLoading(false)
-        return
-      }
-
-      // Fetch staff names for assigned requests
-      const assignedIds = Array.from(new Set((reqData || []).map((r) => r.assigned_to).filter(Boolean))) as string[]
-      let staffMap: Record<string, string> = {}
-
-      if (assignedIds.length > 0) {
-        const { data: staffProfiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', assignedIds)
-
-        if (staffProfiles) {
-          staffProfiles.forEach((s) => {
-            staffMap[s.user_id] = s.full_name
-          })
-        }
-      }
-
-      const formatted = (reqData || []).map((r) => ({
-        ...r,
-        assignee: r.assigned_to ? { full_name: staffMap[r.assigned_to] || 'Staff Member' } : null,
-      }))
-
-      setRequests(formatted)
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load requests.')
-    } finally {
-      setLoading(false)
-    }
+  const loadData = () => {
+    const list = getDemoRequests()
+    setRequests(list)
+    setLoading(false)
   }
 
   useEffect(() => {
-    fetchRequests()
+    loadData()
+
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-data-changed', handleUpdate)
+    return () => window.removeEventListener('demo-data-changed', handleUpdate)
   }, [])
 
-  // Filter requests
-  const filteredRequests = useMemo(() => {
-    return requests.filter((req) => {
-      const term = search.toLowerCase().trim()
-      const matchesSearch =
-        !term ||
-        req.ticket_number?.toLowerCase().includes(term) ||
-        req.title.toLowerCase().includes(term) ||
-        (req.description && req.description.toLowerCase().includes(term)) ||
-        (req.location && req.location.toLowerCase().includes(term)) ||
-        (req.assignee?.full_name && req.assignee.full_name.toLowerCase().includes(term))
+  const filteredRequests = requests.filter((req) => {
+    const matchesSearch =
+      req.ticketNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      req.title?.toLowerCase().includes(search.toLowerCase()) ||
+      req.studentName?.toLowerCase().includes(search.toLowerCase()) ||
+      req.assignedStaffName?.toLowerCase().includes(search.toLowerCase()) ||
+      req.location?.toLowerCase().includes(search.toLowerCase())
 
-      const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
-      const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
-      const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
-      const matchesDept = deptFilter === 'ALL' || req.department_id === deptFilter
+    const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
+    const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
+    const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesDept
-    })
-  }, [requests, search, statusFilter, priorityFilter, categoryFilter, deptFilter])
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory
+  })
 
-  const hasActiveFilters =
-    search !== '' ||
-    statusFilter !== 'ALL' ||
-    priorityFilter !== 'ALL' ||
-    categoryFilter !== 'ALL' ||
-    deptFilter !== 'ALL'
-
-  const clearFilters = () => {
-    setSearch('')
-    setStatusFilter('ALL')
-    setPriorityFilter('ALL')
-    setCategoryFilter('ALL')
-    setDeptFilter('ALL')
+  if (loading) {
+    return <LoadingState message="Loading administrative requests register..." />
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-              <Layers className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Campus Service Request Directory
-            </h1>
-          </div>
-          <p className="text-sm text-slate-400">
-            Global management, triage, technician delegation, and lifecycle controls for all campus service tickets.
+    <div className="space-y-6 pb-16 font-sans">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Campus Service Requests Registry
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Central repository of all facilities, IT, and maintenance requests across campus.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 text-cyan-400 shadow-sm">
-            {filteredRequests.length} of {requests.length} Requests
-          </span>
+        <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+          Total: {requests.length} Records
         </div>
-      </GlassCard>
+      </div>
 
       {/* Filter and Search Bar */}
-      <GlassCard className="p-4 sm:p-6 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Search Input */}
-          <div className="relative sm:col-span-2 lg:col-span-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div className="sm:col-span-4 relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
             <input
               type="text"
-              placeholder="Search ticket, title, staff..."
+              placeholder="Search ticket #, title, student, staff, location..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+              className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Status Filter */}
-          <div>
+          <div className="sm:col-span-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
+              aria-label="Filter by Status"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Statuses</option>
-              <option value="SUBMITTED">SUBMITTED (Unassigned)</option>
-              <option value="ASSIGNED">ASSIGNED</option>
-              <option value="IN_PROGRESS">IN PROGRESS</option>
-              <option value="RESOLVED">RESOLVED</option>
-              <option value="CLOSED">CLOSED</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="ASSIGNED">Assigned</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="CLOSED">Closed</option>
             </select>
           </div>
 
-          {/* Priority Filter */}
-          <div>
+          <div className="sm:col-span-3">
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
+              aria-label="Filter by Priority"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Priorities</option>
-              <option value="CRITICAL">CRITICAL</option>
-              <option value="HIGH">HIGH</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="LOW">LOW</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
             </select>
           </div>
 
-          {/* Category Filter */}
-          <div>
+          <div className="sm:col-span-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
+              aria-label="Filter by Category"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Categories</option>
               <option value="IT Support">IT Support</option>
@@ -254,134 +141,79 @@ export default function AdminRequestsPage() {
               <option value="Plumbing">Plumbing</option>
               <option value="Maintenance">Maintenance</option>
               <option value="Hostel">Hostel</option>
-              <option value="Transport">Transport</option>
               <option value="Cleaning">Cleaning</option>
-              <option value="Administration">Administration</option>
-            </select>
-          </div>
-
-          {/* Department Filter */}
-          <div>
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition"
-            >
-              <option value="ALL">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
             </select>
           </div>
         </div>
+      </div>
 
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
-            <span className="text-slate-400">
-              Showing <span className="font-semibold text-white">{filteredRequests.length}</span> matching tickets
-            </span>
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center space-x-1.5 text-cyan-400 hover:text-cyan-300 font-semibold"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Filters</span>
-            </button>
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Main Content Area */}
-      <GlassCard className="p-0 overflow-hidden">
-        {loading ? (
-          <div className="py-20 text-center space-y-3">
-            <Loader2 className="w-8 h-8 mx-auto animate-spin text-cyan-400" />
-            <p className="text-xs text-slate-400">Loading campus requests database...</p>
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center space-y-2">
-            <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-            <p className="text-sm font-semibold text-white">Error Loading Requests</p>
-            <p className="text-xs text-slate-400">{error}</p>
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="py-16">
+      {/* Requests Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        {filteredRequests.length === 0 ? (
+          <div className="p-10 text-center">
             <EmptyState
-              icon={Inbox}
-              title="No requests match criteria"
-              description="Try adjusting your filters or search keywords to view tickets."
-              actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
-              onAction={hasActiveFilters ? clearFilters : undefined}
+              title="No Requests Match Filter"
+              description="No tickets found matching the specified parameters."
             />
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800/80">
-              <thead className="bg-slate-900/60">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Ticket #
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Title & Category
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Assigned Staff
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Action
-                  </th>
+                  <th className="py-3 px-6">Ticket</th>
+                  <th className="py-3 px-6">Problem & Location</th>
+                  <th className="py-3 px-6">Category</th>
+                  <th className="py-3 px-6">Priority</th>
+                  <th className="py-3 px-6">Student</th>
+                  <th className="py-3 px-6">Assigned Staff</th>
+                  <th className="py-3 px-6">Status</th>
+                  <th className="py-3 px-6 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-100">
                 {filteredRequests.map((req) => (
-                  <tr key={req.id} className="hover:bg-slate-900/40 transition">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">
-                        {req.ticket_number || 'SR-0000'}
-                      </span>
+                  <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-6 font-mono font-bold text-emerald-700 whitespace-nowrap">
+                      {req.ticketNumber}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-white text-xs line-clamp-1 max-w-xs">{req.title}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">{req.category}</div>
+
+                    <td className="py-3.5 px-6 max-w-xs">
+                      <div className="font-semibold text-slate-900 line-clamp-1">{req.title}</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">{req.location}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+
+                    <td className="py-3.5 px-6 font-medium text-slate-600 whitespace-nowrap">
+                      {req.category}
+                    </td>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
                       <PriorityBadge priority={req.priority} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <StatusBadge status={req.status} />
+
+                    <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                      {req.studentName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {req.assignee?.full_name ? (
-                        <span className="inline-flex items-center space-x-1.5 text-xs text-indigo-300 font-medium">
-                          <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>{req.assignee.full_name}</span>
-                        </span>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      {req.assignedStaffName ? (
+                        <span className="font-semibold text-slate-800">{req.assignedStaffName}</span>
                       ) : (
-                        <span className="text-xs text-amber-400 font-medium italic">Unassigned</span>
+                        <span className="text-slate-400 italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
-                      <span>{req.location || 'Campus'}</span>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      <StatusBadge status={req.status} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
+
+                    <td className="py-3.5 px-6 text-right whitespace-nowrap">
                       <Link
                         href={`/admin/requests/${req.id}`}
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-cyan-500 hover:text-slate-950 text-slate-300 font-semibold transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
                       >
+                        <Eye className="w-3.5 h-3.5" />
                         <span>Manage</span>
-                        <ArrowRight className="w-3 h-3" />
                       </Link>
                     </td>
                   </tr>
@@ -390,7 +222,7 @@ export default function AdminRequestsPage() {
             </table>
           </div>
         )}
-      </GlassCard>
+      </div>
     </div>
   )
 }

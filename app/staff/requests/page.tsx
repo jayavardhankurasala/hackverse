@@ -1,218 +1,166 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { 
-  Search, 
-  Filter, 
-  RotateCcw, 
-  ArrowRight, 
-  MapPin, 
-  Calendar, 
-  Clock, 
+import {
+  Search,
+  Filter,
+  RotateCcw,
+  ArrowRight,
+  MapPin,
+  Calendar,
+  Clock,
   AlertCircle,
   Inbox,
-  Loader2,
   Wrench,
-  Sparkles
+  Sliders,
+  Layers,
+  Eye,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { GlassCard } from '@/components/ui/GlassCard'
 import { EmptyState } from '@/components/ui/EmptyState'
-
-interface RequestItem {
-  id: string
-  ticket_number: string
-  title: string
-  description: string
-  category: string
-  priority: string
-  status: string
-  location?: string | null
-  building?: string | null
-  room_number?: string | null
-  created_at: string
-  updated_at: string
-  assigned_at?: string | null
-}
+import { LoadingState } from '@/components/ui/LoadingState'
+import {
+  getCurrentDemoUser,
+  getStaffAssignedRequests,
+  getDepartmentRequests,
+  getDemoStaffDomain,
+} from '@/lib/demo/demo-service'
+import { DemoRequest, DemoUser } from '@/lib/demo/types'
 
 export default function StaffRequestsPage() {
-  const [requests, setRequests] = useState<RequestItem[]>([])
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
+  const [requests, setRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Filters state
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [priorityFilter, setPriorityFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [viewScope, setViewScope] = useState<'assigned' | 'department'>('assigned')
 
-  const fetchRequests = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const supabase = createClient()
-      const { data: { user }, error: authErr } = await supabase.auth.getUser()
-      if (authErr || !user) {
-        setError('You must be logged in to view assigned requests.')
-        setLoading(false)
-        return
-      }
+  const loadData = () => {
+    const user = getCurrentDemoUser()
+    setCurrentUser(user)
+    const domain = getDemoStaffDomain(user.id)
 
-      // Query only requests assigned to the currently authenticated staff user
-      const { data, error: fetchErr } = await supabase
-        .from('service_requests')
-        .select(`
-          id,
-          ticket_number,
-          title,
-          description,
-          category,
-          priority,
-          status,
-          location,
-          building,
-          room_number,
-          created_at,
-          updated_at,
-          assigned_at
-        `)
-        .eq('assigned_to', user.id)
-        .order('created_at', { ascending: false })
+    const list =
+      viewScope === 'assigned'
+        ? getStaffAssignedRequests(user.id)
+        : getDepartmentRequests(domain)
 
-      if (fetchErr) {
-        setError(fetchErr.message)
-      } else {
-        setRequests(data || [])
-      }
-    } catch (err: any) {
-      setError(err?.message || 'An unexpected error occurred while fetching requests.')
-    } finally {
-      setLoading(false)
-    }
+    setRequests(list)
+    setLoading(false)
   }
 
   useEffect(() => {
-    fetchRequests()
-  }, [])
+    loadData()
 
-  // Extract distinct categories from requests
-  const availableCategories = useMemo(() => {
-    const cats = new Set<string>()
-    requests.forEach((r) => {
-      if (r.category) cats.add(r.category)
-    })
-    return Array.from(cats).sort()
-  }, [requests])
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-user-changed', handleUpdate)
+    window.addEventListener('demo-data-changed', handleUpdate)
 
-  // Client-side filtering logic
-  const filteredRequests = useMemo(() => {
-    return requests.filter((req) => {
-      // 1. Search Query
-      if (search.trim()) {
-        const query = search.toLowerCase()
-        const matchTitle = req.title.toLowerCase().includes(query)
-        const matchTicket = req.ticket_number?.toLowerCase().includes(query)
-        const matchDesc = req.description?.toLowerCase().includes(query)
-        const matchBuilding = req.building?.toLowerCase().includes(query)
-        const matchLocation = req.location?.toLowerCase().includes(query)
-        if (!matchTitle && !matchTicket && !matchDesc && !matchBuilding && !matchLocation) {
-          return false
-        }
-      }
+    return () => {
+      window.removeEventListener('demo-user-changed', handleUpdate)
+      window.removeEventListener('demo-data-changed', handleUpdate)
+    }
+  }, [viewScope])
 
-      // 2. Status Filter
-      if (statusFilter !== 'ALL' && req.status !== statusFilter) {
-        return false
-      }
+  const filteredRequests = requests.filter((req) => {
+    const matchesSearch =
+      req.ticketNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      req.title?.toLowerCase().includes(search.toLowerCase()) ||
+      req.studentName?.toLowerCase().includes(search.toLowerCase()) ||
+      req.location?.toLowerCase().includes(search.toLowerCase())
 
-      // 3. Priority Filter
-      if (priorityFilter !== 'ALL' && req.priority !== priorityFilter) {
-        return false
-      }
+    const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
+    const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
+    const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
 
-      // 4. Category Filter
-      if (categoryFilter !== 'ALL' && req.category !== categoryFilter) {
-        return false
-      }
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory
+  })
 
-      return true
-    })
-  }, [requests, search, statusFilter, priorityFilter, categoryFilter])
-
-  const handleResetFilters = () => {
-    setSearch('')
-    setStatusFilter('ALL')
-    setPriorityFilter('ALL')
-    setCategoryFilter('ALL')
+  if (loading || !currentUser) {
+    return <LoadingState message="Loading technician requests..." />
   }
 
-  const isFiltered = search || statusFilter !== 'ALL' || priorityFilter !== 'ALL' || categoryFilter !== 'ALL'
-
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
+    <div className="space-y-6 pb-16 font-sans">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center space-x-2">
-            <span className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <Wrench className="w-5 h-5" />
-            </span>
-            <span>Assigned Service Queue</span>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Assigned Work Orders
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Manage, execute, and mark resolutions for campus tickets dispatched to your account.
+          <p className="text-xs text-slate-500 mt-1">
+            Complete list of facilities requests assigned to technician{' '}
+            <strong className="text-slate-800">{currentUser.name}</strong>
           </p>
         </div>
 
-        <button
-          onClick={fetchRequests}
-          disabled={loading}
-          className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 text-xs font-semibold transition"
-        >
-          <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Queue</span>
-        </button>
-      </GlassCard>
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setViewScope('assigned')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              viewScope === 'assigned'
+                ? 'bg-white text-emerald-800 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            My Assigned ({getStaffAssignedRequests(currentUser.id).length})
+          </button>
+          <button
+            onClick={() => setViewScope('department')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              viewScope === 'department'
+                ? 'bg-white text-emerald-800 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Department Queue ({getDepartmentRequests(getDemoStaffDomain(currentUser.id)).length})
+          </button>
+        </div>
+      </div>
 
       {/* Filter and Search Bar */}
-      <GlassCard className="p-4 sm:p-6 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Search Box */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div className="sm:col-span-4 relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
             <input
               type="text"
-              placeholder="Search ticket #, title, room..."
+              placeholder="Search ticket #, title, student..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
 
-          {/* Status Dropdown */}
-          <div>
+          <div className="sm:col-span-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
+              aria-label="Filter by Status"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Statuses</option>
-              <option value="ASSIGNED">Assigned (Waiting)</option>
+              <option value="ASSIGNED">Assigned</option>
               <option value="IN_PROGRESS">In Progress</option>
               <option value="RESOLVED">Resolved</option>
               <option value="CLOSED">Closed</option>
             </select>
           </div>
 
-          {/* Priority Dropdown */}
-          <div>
+          <div className="sm:col-span-3">
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
+              aria-label="Filter by Priority"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Priorities</option>
               <option value="CRITICAL">Critical</option>
@@ -222,128 +170,96 @@ export default function StaffRequestsPage() {
             </select>
           </div>
 
-          {/* Category Dropdown */}
-          <div>
+          <div className="sm:col-span-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-900/80 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 transition"
+              aria-label="Filter by Category"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="ALL">All Categories</option>
-              {availableCategories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              <option value="IT Support">IT Support</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Plumbing">Plumbing</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Hostel">Hostel</option>
+              <option value="Cleaning">Cleaning</option>
             </select>
           </div>
         </div>
+      </div>
 
-        {/* Filters Active Counter & Reset */}
-        {isFiltered && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
-            <span className="text-slate-400">
-              Showing <span className="font-semibold text-white">{filteredRequests.length}</span> of {requests.length} tickets
-            </span>
-            <button
-              onClick={handleResetFilters}
-              className="inline-flex items-center space-x-1.5 text-indigo-400 hover:text-indigo-300 font-semibold"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Filters</span>
-            </button>
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Main Request Queue List */}
-      <GlassCard className="p-0 overflow-hidden">
-        {loading ? (
-          <div className="py-20 text-center space-y-3">
-            <Loader2 className="w-8 h-8 mx-auto animate-spin text-indigo-400" />
-            <p className="text-xs text-slate-400">Loading your assignment queue...</p>
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center space-y-2">
-            <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-            <p className="text-sm font-semibold text-white">Error Loading Requests</p>
-            <p className="text-xs text-slate-400">{error}</p>
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="py-16">
+      {/* Requests Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        {filteredRequests.length === 0 ? (
+          <div className="p-10 text-center">
             <EmptyState
-              icon={Inbox}
-              title={isFiltered ? "No matching tickets" : "No tickets in your queue"}
-              description={isFiltered ? "Try loosening your search terms or filters." : "You have completed all assigned tickets or haven't been assigned any new tasks yet."}
-              actionLabel={isFiltered ? "Clear Filters" : undefined}
-              onAction={isFiltered ? handleResetFilters : undefined}
+              title="No Work Orders Found"
+              description="No tickets matched your current search filters."
             />
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/80">
-            {filteredRequests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/staff/requests/${req.id}`}
-                className="block p-5 hover:bg-slate-900/60 transition-colors group"
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-indigo-400 bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-800/60">
-                        {req.ticket_number || 'SR-0000'}
-                      </span>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-6">Ticket</th>
+                  <th className="py-3 px-6">Problem & Location</th>
+                  <th className="py-3 px-6">Category</th>
+                  <th className="py-3 px-6">Priority</th>
+                  <th className="py-3 px-6">Student</th>
+                  <th className="py-3 px-6">Status</th>
+                  <th className="py-3 px-6 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRequests.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-6 font-mono font-bold text-emerald-700 whitespace-nowrap">
+                      {req.ticketNumber}
+                    </td>
+
+                    <td className="py-3.5 px-6 max-w-sm">
+                      <div className="font-semibold text-slate-900 line-clamp-1">
+                        {req.title}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {req.location} {req.room ? `• ${req.room}` : ''}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 px-6 font-medium text-slate-600 whitespace-nowrap">
+                      {req.category}
+                    </td>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
                       <PriorityBadge priority={req.priority} />
+                    </td>
+
+                    <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                      {req.studentName}
+                    </td>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
                       <StatusBadge status={req.status} />
-                      <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-0.5 rounded-lg border border-slate-700/50">
-                        {req.category}
-                      </span>
-                    </div>
+                    </td>
 
-                    <h3 className="text-base font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                      {req.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-400 line-clamp-1">
-                      {req.description}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400 pt-1">
-                      <span className="flex items-center space-x-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                        <span>
-                          {req.location || 'Campus'}
-                          {req.building ? ` • ${req.building}` : ''}
-                          {req.room_number ? ` • Room ${req.room_number}` : ''}
-                        </span>
-                      </span>
-
-                      <span className="flex items-center space-x-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Created: {new Date(req.created_at).toLocaleDateString()}</span>
-                      </span>
-
-                      {req.assigned_at && (
-                        <span className="flex items-center space-x-1.5 text-indigo-300">
-                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Assigned: {new Date(req.assigned_at).toLocaleDateString()}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center self-end md:self-center">
-                    <span className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/60 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-sm">
-                      <span>Action Ticket</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                    <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                      <Link
+                        href={`/staff/requests/${req.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </GlassCard>
+      </div>
     </div>
   )
 }

@@ -1,291 +1,488 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { 
-  ClipboardList, 
-  Clock, 
-  PlayCircle, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
-  MapPin, 
+import {
+  Wrench,
+  ClipboardList,
+  Clock,
+  PlayCircle,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  MapPin,
   Calendar,
   Building2,
-  Wrench,
   Sparkles,
-  ShieldAlert
+  Search,
+  Filter,
+  Eye,
+  Check,
+  User,
+  ShieldAlert,
+  Sliders,
+  Layers,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { GlassCard } from '@/components/ui/GlassCard'
 import { StatCard } from '@/components/ui/StatCard'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { EmptyState } from '@/components/ui/EmptyState'
+import {
+  getCurrentDemoUser,
+  getStaffAssignedRequests,
+  getDepartmentRequests,
+  getDemoStaffDomain,
+  setDemoStaffDomain,
+  startWorkDemoRequest,
+  resolveDemoRequest,
+} from '@/lib/demo/demo-service'
+import { DemoRequest, DemoUser, ServiceCategory } from '@/lib/demo/types'
 
-export const dynamic = 'force-dynamic'
+const DOMAINS: string[] = [
+  'IT Support',
+  'Electrical',
+  'Plumbing',
+  'Hostel',
+  'Cleaning',
+  'Maintenance',
+  'Administration',
+]
 
-export default async function StaffDashboardPage() {
-  const supabase = await createClient()
+export default function StaffDashboardPage() {
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
+  const [activeDomain, setActiveDomain] = useState<string>('IT Support')
+  const [activeTab, setActiveTab] = useState<'my-assigned' | 'department-queue'>('my-assigned')
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
+  const [assignedRequests, setAssignedRequests] = useState<DemoRequest[]>([])
+  const [deptRequests, setDeptRequests] = useState<DemoRequest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Filters
+  const [search, setSearch] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+
+  // Resolve Modal
+  const [resolvingTicket, setResolvingTicket] = useState<DemoRequest | null>(null)
+  const [resolutionNote, setResolutionNote] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const loadData = () => {
+    const user = getCurrentDemoUser()
+    setCurrentUser(user)
+
+    const domain = getDemoStaffDomain(user.id)
+    setActiveDomain(domain)
+
+    const myReqs = getStaffAssignedRequests(user.id)
+    setAssignedRequests(myReqs)
+
+    const dReqs = getDepartmentRequests(domain)
+    setDeptRequests(dReqs)
+
+    setLoading(false)
   }
 
-  // Fetch staff profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, email, role, department_id, departments(name)')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  useEffect(() => {
+    loadData()
 
-  // Query only requests assigned to the currently authenticated staff user
-  const { data: requests, error } = await supabase
-    .from('service_requests')
-    .select(`
-      id,
-      ticket_number,
-      title,
-      description,
-      category,
-      priority,
-      status,
-      location,
-      building,
-      room_number,
-      created_at,
-      assigned_at,
-      resolved_at
-    `)
-    .eq('assigned_to', user.id)
-    .order('created_at', { ascending: false })
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-user-changed', handleUpdate)
+    window.addEventListener('demo-data-changed', handleUpdate)
 
-  const allRequests = requests || []
+    return () => {
+      window.removeEventListener('demo-user-changed', handleUpdate)
+      window.removeEventListener('demo-data-changed', handleUpdate)
+    }
+  }, [])
 
-  // Compute live statistics
-  const totalAssigned = allRequests.length
-  const assignedWaiting = allRequests.filter((r) => r.status === 'ASSIGNED').length
-  const inProgress = allRequests.filter((r) => r.status === 'IN_PROGRESS').length
-  const resolved = allRequests.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+  const handleDomainChange = (newDomain: string) => {
+    if (!currentUser) return
+    setActiveDomain(newDomain)
+    setDemoStaffDomain(currentUser.id, newDomain)
+    setDeptRequests(getDepartmentRequests(newDomain))
+  }
 
-  // High/Critical priority requests needing attention
-  const urgentRequests = allRequests.filter(
-    (r) => (r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS') && (r.priority === 'CRITICAL' || r.priority === 'HIGH')
-  )
+  const handleStartWork = (ticketId: string) => {
+    if (!currentUser) return
+    startWorkDemoRequest(ticketId, currentUser.name)
+    loadData()
+  }
 
-  // Recent 5 assigned requests
-  const recentRequests = allRequests.slice(0, 5)
+  const handleOpenResolve = (ticket: DemoRequest) => {
+    setResolvingTicket(ticket)
+    setResolutionNote(
+      ticket.category === 'IT Support'
+        ? 'Inspected access point router on floor, updated network credentials, and validated signal strength.'
+        : 'Replaced defective component, verified electrical safety standards, and restored full operation.'
+    )
+  }
 
-  const deptData: any = profile?.departments
-  const departmentName = deptData?.name || 'Facilities Operations'
+  const handleConfirmResolve = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resolvingTicket || !currentUser) return
+    setIsSubmitting(true)
+    resolveDemoRequest(resolvingTicket.id, resolutionNote, currentUser.name)
+    setIsSubmitting(false)
+    setResolvingTicket(null)
+    loadData()
+  }
+
+  if (loading || !currentUser) {
+    return <LoadingState message="Loading technician operations dashboard..." />
+  }
+
+  // Active list to display based on selected tab
+  const baseList = activeTab === 'my-assigned' ? assignedRequests : deptRequests
+
+  const filteredRequests = baseList.filter((req) => {
+    const matchesSearch =
+      req.ticketNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      req.title?.toLowerCase().includes(search.toLowerCase()) ||
+      req.studentName?.toLowerCase().includes(search.toLowerCase()) ||
+      req.location?.toLowerCase().includes(search.toLowerCase())
+
+    const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
+    const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
+
+    return matchesSearch && matchesPriority && matchesStatus
+  })
+
+  // Priority sorting
+  const priorityOrder: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 }
+  const sortedRequests = [...filteredRequests].sort((a, b) => {
+    const diff = (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+    if (diff !== 0) return diff
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+
+  // Stats
+  const statAssigned = assignedRequests.filter((r) => r.status === 'ASSIGNED').length
+  const statInProgress = assignedRequests.filter((r) => r.status === 'IN_PROGRESS').length
+  const statResolved = assignedRequests.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+  const statHighPriority = assignedRequests.filter(
+    (r) => (r.priority === 'HIGH' || r.priority === 'CRITICAL') && r.status !== 'RESOLVED' && r.status !== 'CLOSED'
+  ).length
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Top Header & Greeting */}
-      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <Wrench className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Staff Field Operations
-            </h1>
+    <div className="space-y-8 pb-16 font-sans">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+            <Wrench className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Field Technician Portal</span>
           </div>
-          <p className="text-slate-400 text-sm">
-            Welcome back, <span className="font-semibold text-slate-200">{profile?.full_name || 'Staff Member'}</span>
-            <span className="text-slate-500"> • {departmentName} Division</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            My Assigned Requests
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Technician: <strong className="text-slate-800">{currentUser.name}</strong> • Specialized in{' '}
+            <span className="text-emerald-700 font-semibold">{activeDomain}</span>
           </p>
         </div>
 
-        <Link
-          href="/staff/requests"
-          className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/25"
-        >
-          <ClipboardList className="w-4 h-4" />
-          <span>Active Assignment Queue</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-      </GlassCard>
+        {/* WORK DOMAIN SELECTOR */}
+        <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+          <Sliders className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              Choose Your Work Domain:
+            </label>
+            <select
+              value={activeDomain}
+              onChange={(e) => handleDomainChange(e.target.value)}
+              aria-label="Choose Your Work Domain"
+              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            >
+              {DOMAINS.map((dom) => (
+                <option key={dom} value={dom}>
+                  {dom}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
-      {/* Live Statistics Cards */}
+      {/* 4 Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Assigned Tickets"
-          value={totalAssigned}
-          icon={ClipboardList}
-          color="indigo"
-          subtitle="All queue assignments"
-        />
-        <StatCard
-          title="Pending Start"
-          value={assignedWaiting}
+          title="Assigned"
+          value={statAssigned}
+          subtitle="Waiting to start work"
           icon={Clock}
-          color="purple"
-          subtitle="Awaiting commencement"
+          color="blue"
         />
+
         <StatCard
           title="In Progress"
-          value={inProgress}
+          value={statInProgress}
+          subtitle="Active on-site repair"
           icon={PlayCircle}
           color="amber"
-          subtitle="Actively troubleshooting"
         />
+
         <StatCard
           title="Resolved"
-          value={resolved}
+          value={statResolved}
+          subtitle="Successfully completed"
           icon={CheckCircle2}
           color="emerald"
-          subtitle="Completed tickets"
+        />
+
+        <StatCard
+          title="High / Critical Priority"
+          value={statHighPriority}
+          subtitle="Requires urgent attention"
+          icon={AlertCircle}
+          color="rose"
         />
       </div>
 
-      {/* Urgent Attention Alert Banner (If any) */}
-      {urgentRequests.length > 0 && (
-        <div className="p-6 rounded-2xl bg-rose-950/40 border border-rose-500/30 backdrop-blur-md space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-rose-400">
-              <ShieldAlert className="w-5 h-5 text-rose-400 animate-pulse" />
-              <h2 className="text-base font-bold tracking-tight text-white">
-                Critical SLA Tickets Requiring Action ({urgentRequests.length})
-              </h2>
-            </div>
-            <span className="text-[10px] font-bold text-rose-300 bg-rose-900/60 px-2.5 py-1 rounded-full uppercase tracking-wider border border-rose-700/50">
-              Priority Escalation
-            </span>
+      {/* Main Queue Container with Tab Switcher */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        {/* Tab Headers */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 px-6 pt-4 pb-2 gap-4">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setActiveTab('my-assigned')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'my-assigned'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>My Assigned Queue ({assignedRequests.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('department-queue')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'department-queue'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>{activeDomain} Department Repair Queue ({deptRequests.length})</span>
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {urgentRequests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/staff/requests/${req.id}`}
-                className="bg-slate-900/80 p-4 rounded-xl border border-rose-500/20 hover:border-rose-400/50 transition-all flex flex-col justify-between group shadow-lg"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="font-mono text-xs font-bold text-slate-300 bg-slate-950 px-2.5 py-0.5 rounded border border-slate-800">
-                      {req.ticket_number || 'SR-0000'}
-                    </span>
-                    <div className="flex items-center space-x-1.5">
-                      <PriorityBadge priority={req.priority} />
-                      <StatusBadge status={req.status} />
-                    </div>
-                  </div>
-                  <h3 className="font-semibold text-white group-hover:text-indigo-400 text-sm line-clamp-1 transition-colors">
-                    {req.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                    {req.description}
-                  </p>
-                </div>
+          <span className="text-[11px] text-slate-400 font-medium">
+            Sorted by Priority SLA (Critical → High → Med)
+          </span>
+        </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                  <span className="flex items-center space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                    <span>
-                      {req.location || 'Campus'} {req.building ? `(${req.building})` : ''}
-                    </span>
-                  </span>
-                  <span className="text-indigo-400 font-semibold group-hover:underline flex items-center space-x-1">
-                    <span>Manage</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
-              </Link>
-            ))}
+        {/* Filter and Search Bar */}
+        <div className="p-4 bg-slate-50/50 border-b border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-6 relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search ticket #, issue title, student name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                aria-label="Filter by Priority"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Priorities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter by Status"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Requests Table */}
+        {sortedRequests.length === 0 ? (
+          <div className="p-10 text-center">
+            <EmptyState
+              title={activeTab === 'my-assigned' ? 'No Assigned Requests' : 'Department Queue Clear'}
+              description={
+                activeTab === 'my-assigned'
+                  ? 'You currently have no repair tickets directly assigned to your queue.'
+                  : `There are currently no repair tickets awaiting attention in the ${activeDomain} domain.`
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-6">Ticket</th>
+                  <th className="py-3 px-6">Request & Location</th>
+                  <th className="py-3 px-6">Category</th>
+                  <th className="py-3 px-6">Priority</th>
+                  <th className="py-3 px-6">Student</th>
+                  <th className="py-3 px-6">Status</th>
+                  <th className="py-3 px-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sortedRequests.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-6 font-mono font-bold text-emerald-700 whitespace-nowrap">
+                      {req.ticketNumber}
+                    </td>
+
+                    <td className="py-3.5 px-6 max-w-xs">
+                      <div className="font-semibold text-slate-900 line-clamp-1">
+                        {req.title}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        <span>{req.location} {req.room ? `• ${req.room}` : ''}</span>
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 px-6 font-medium text-slate-600 whitespace-nowrap">
+                      {req.category}
+                    </td>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      <PriorityBadge priority={req.priority} />
+                    </td>
+
+                    <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                      {req.studentName}
+                    </td>
+
+                    <td className="py-3.5 px-6 whitespace-nowrap">
+                      <StatusBadge status={req.status} />
+                    </td>
+
+                    <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        {req.status === 'ASSIGNED' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartWork(req.id)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-2xs transition cursor-pointer"
+                          >
+                            Start Work
+                          </button>
+                        )}
+
+                        {req.status === 'IN_PROGRESS' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenResolve(req)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition cursor-pointer"
+                          >
+                            Resolve
+                          </button>
+                        )}
+
+                        <Link
+                          href={`/staff/requests/${req.id}`}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* RESOLUTION MODAL */}
+      {resolvingTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Resolve Service Ticket {resolvingTicket.ticketNumber}
+                </h3>
+                <p className="text-xs text-slate-500">{resolvingTicket.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResolvingTicket(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmResolve} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Resolution Notes <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                  placeholder="Detail the work carried out, root cause fixed, and verification checks performed..."
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="p-3 bg-emerald-50 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Resolving this ticket updates the student's status and requests quality feedback.
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResolvingTicket(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !resolutionNote.trim()}
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmitting ? 'Recording Resolution...' : 'Confirm Resolution'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-
-      {/* Recent Assigned Requests Section */}
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <ClipboardList className="w-4 h-4 text-indigo-400" />
-              <span>Recent Queue Assignments</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Most recently routed service tasks assigned to your technician account</p>
-          </div>
-          <Link
-            href="/staff/requests"
-            className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition flex items-center space-x-1"
-          >
-            <span>View all assignments ({totalAssigned})</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {recentRequests.length === 0 ? (
-          <div className="py-16 px-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-white">No requests assigned yet</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Your queue is currently clear! New service requests dispatched to your department by administrators will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-800/80">
-            {recentRequests.map((req) => (
-              <Link
-                key={req.id}
-                href={`/staff/requests/${req.id}`}
-                className="block p-5 hover:bg-slate-900/60 transition-colors group"
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-indigo-400 bg-indigo-950/50 px-2.5 py-0.5 rounded-lg border border-indigo-800/60">
-                        {req.ticket_number || 'SR-0000'}
-                      </span>
-                      <PriorityBadge priority={req.priority} />
-                      <StatusBadge status={req.status} />
-                      <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-0.5 rounded-lg border border-slate-700/50">
-                        {req.category}
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                      {req.title}
-                    </h3>
-
-                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400">
-                      <span className="flex items-center space-x-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                        <span>
-                          {req.location || 'Campus'}
-                          {req.building ? ` • ${req.building}` : ''}
-                          {req.room_number ? ` • Room ${req.room_number}` : ''}
-                        </span>
-                      </span>
-
-                      <span className="flex items-center space-x-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Created: {new Date(req.created_at).toLocaleDateString()}</span>
-                      </span>
-
-                      {req.assigned_at && (
-                        <span className="flex items-center space-x-1.5 text-indigo-300">
-                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Assigned: {new Date(req.assigned_at).toLocaleDateString()}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center self-end md:self-center">
-                    <span className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 text-slate-300 border border-slate-700/60 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all shadow-sm">
-                      <span>Handle Ticket</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </GlassCard>
     </div>
   )
 }

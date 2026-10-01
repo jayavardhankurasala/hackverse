@@ -1,79 +1,114 @@
-import { redirect } from 'next/navigation'
-import { 
-  User, 
-  Mail, 
-  ShieldCheck, 
-  Building2, 
-  ClipboardList, 
-  CheckCircle2, 
-  Clock, 
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import {
+  User,
+  Mail,
+  ShieldCheck,
+  Building2,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
   Calendar,
   Wrench,
-  Sparkles
+  Sparkles,
+  ArrowLeft,
+  CreditCard,
+  Sliders,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { GlassCard } from '@/components/ui/GlassCard'
 import { StatCard } from '@/components/ui/StatCard'
+import {
+  getCurrentDemoUser,
+  getStaffAssignedRequests,
+  getDemoStaffDomain,
+  setDemoStaffDomain,
+} from '@/lib/demo/demo-service'
+import { DemoUser } from '@/lib/demo/types'
 
-export const dynamic = 'force-dynamic'
+const DOMAINS: string[] = [
+  'IT Support',
+  'Electrical',
+  'Plumbing',
+  'Hostel',
+  'Cleaning',
+  'Maintenance',
+  'Administration',
+]
 
-export default async function StaffProfilePage() {
-  const supabase = await createClient()
+export default function StaffProfilePage() {
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
+  const [domain, setDomain] = useState('IT Support')
+  const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
+  const loadData = () => {
+    const user = getCurrentDemoUser()
+    setCurrentUser(user)
+
+    const activeDom = getDemoStaffDomain(user.id)
+    setDomain(activeDom)
+
+    const myReqs = getStaffAssignedRequests(user.id)
+    setStats({
+      total: myReqs.length,
+      pending: myReqs.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length,
+      resolved: myReqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
+    })
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      email,
-      role,
-      student_id,
-      phone,
-      created_at,
-      departments ( name, description )
-    `)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  useEffect(() => {
+    loadData()
 
-  // Get request statistics for this staff member
-  const { data: requests } = await supabase
-    .from('service_requests')
-    .select('status')
-    .eq('assigned_to', user.id)
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-user-changed', handleUpdate)
+    window.addEventListener('demo-data-changed', handleUpdate)
 
-  const allReqs = requests || []
-  const totalAssigned = allReqs.length
-  const inProgress = allReqs.filter((r) => r.status === 'IN_PROGRESS').length
-  const resolved = allReqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+    return () => {
+      window.removeEventListener('demo-user-changed', handleUpdate)
+      window.removeEventListener('demo-data-changed', handleUpdate)
+    }
+  }, [])
 
-  const deptData: any = profile?.departments
-  const departmentName = deptData?.name || 'General Operations / Maintenance'
+  const handleDomainChange = (newDomain: string) => {
+    if (!currentUser) return
+    setDomain(newDomain)
+    setDemoStaffDomain(currentUser.id, newDomain)
+  }
+
+  if (!currentUser) return null
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <GlassCard className="p-6 sm:p-8 space-y-6" glow>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-12 font-sans">
+      <div>
+        <Link
+          href="/staff/dashboard"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Operations Queue</span>
+        </Link>
+      </div>
+
+      {/* Main Profile Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 sm:p-8 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-400/30">
-              {profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : 'S'}
+            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-2xs">
+              {currentUser.name.charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold text-white tracking-tight">
-                  {profile?.full_name || 'Staff Member'}
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  {currentUser.name}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 uppercase tracking-wider">
-                  Operations Staff
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 uppercase tracking-wider">
+                  Technician
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 flex items-center space-x-1.5">
-                <Wrench className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Authorized Campus Maintenance & Operations Field Specialist</span>
+              <p className="text-xs text-slate-500 mt-1 flex items-center space-x-1.5">
+                <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                <span>Certified Campus Facilities Specialist</span>
               </p>
             </div>
           </div>
@@ -82,44 +117,44 @@ export default async function StaffProfilePage() {
         {/* Profile Information Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Staff Identity & Credentials</span>
-            </h3>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Staff Credentials</span>
+            </h2>
 
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <Mail className="w-4 h-4 text-indigo-400 shrink-0" />
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Employee ID
+                  </span>
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.employeeId || 'EMP202601'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div className="truncate">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Staff Email
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Official Email
                   </span>
-                  <span className="text-xs font-semibold text-slate-200 truncate block">
-                    {profile?.email || user.email}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Staff Employee ID
-                  </span>
-                  <span className="text-xs font-semibold text-slate-200 font-mono">
-                    {profile?.student_id || 'STF-OP-001'}
+                  <span className="font-semibold text-slate-800 truncate block">
+                    {currentUser.email}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Wrench className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Active Since
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Specialization
                   </span>
-                  <span className="text-xs font-semibold text-slate-200">
-                    {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Active Service'}
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.specialization || 'Network, Wi-Fi, Computers'}
                   </span>
                 </div>
               </div>
@@ -127,57 +162,66 @@ export default async function StaffProfilePage() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Assigned Unit</span>
-            </h3>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <Sliders className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Work Domain Setting</span>
+            </h2>
 
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Operational Unit / Department
-              </span>
-              <p className="text-sm font-bold text-white">
-                {departmentName}
-              </p>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Tickets assigned to this unit will be dispatched to your personal work queue with SLA priority countdowns.
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Active Department / Work Pool:
+                </label>
+                <select
+                  value={domain}
+                  onChange={(e) => handleDomainChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  {DOMAINS.map((dom) => (
+                    <option key={dom} value={dom}>
+                      {dom}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Tickets categorized under <strong className="text-slate-800">{domain}</strong> will appear in your Department Repair Queue.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Resolution Metrics */}
-        <div className="pt-6 border-t border-slate-800">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center space-x-1.5">
-            <ClipboardList className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Field Workload Metrics</span>
-          </h3>
-
+        {/* Stats */}
+        <div className="pt-4 border-t border-slate-100">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            Assigned Work Order Performance
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
-              title="Assigned Tickets"
-              value={totalAssigned}
+              title="Total Assigned"
+              value={stats.total}
+              subtitle="All assigned tickets"
               icon={ClipboardList}
-              color="indigo"
-              subtitle="Total queue assignments"
+              color="blue"
             />
             <StatCard
-              title="Active Work"
-              value={inProgress}
+              title="In Progress"
+              value={stats.pending}
+              subtitle="Pending completion"
               icon={Clock}
               color="amber"
-              subtitle="In progress right now"
             />
             <StatCard
-              title="Resolved"
-              value={resolved}
+              title="Completed / Resolved"
+              value={stats.resolved}
+              subtitle="Successfully fixed"
               icon={CheckCircle2}
               color="emerald"
-              subtitle="Successfully fixed"
             />
           </div>
         </div>
-      </GlassCard>
+      </div>
     </div>
   )
 }

@@ -1,487 +1,484 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useParams } from 'next/navigation'
+import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Calendar, 
-  CheckCircle2, 
-  FileText, 
-  Paperclip, 
-  MessageSquare, 
-  History, 
-  Loader2,
-  ExternalLink,
-  Building2,
-  Send,
+import {
+  ArrowLeft,
+  MapPin,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  User,
+  Building,
   Sparkles,
+  Paperclip,
+  Send,
+  MessageSquare,
+  AlertCircle,
+  Star,
+  Check,
   ShieldCheck,
-  AlertCircle
+  Wrench,
 } from 'lucide-react'
-import { addComment } from '@/actions/comments'
-import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { RatingCard } from '@/components/student/RatingCard'
-import { GlassCard } from '@/components/ui/GlassCard'
-import { motion } from 'framer-motion'
+import { PriorityBadge } from '@/components/ui/PriorityBadge'
+import { LoadingState } from '@/components/ui/LoadingState'
+import {
+  getDemoRequestById,
+  getDemoComments,
+  addDemoComment,
+  getCurrentDemoUser,
+  rateDemoRequest,
+  getDemoLogs,
+} from '@/lib/demo/demo-service'
+import { DemoRequest, DemoComment, DemoActivityLog } from '@/lib/demo/types'
 
-export default function StudentRequestDetailPage() {
-  const params = useParams()
-  const requestId = params.id as string
+export default function StudentRequestDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const resolvedParams = use(params)
+  const requestId = resolvedParams.id
 
-  const [request, setRequest] = useState<any>(null)
-  const [comments, setComments] = useState<any[]>([])
-  const [attachments, setAttachments] = useState<any[]>([])
-  const [activityLogs, setActivityLogs] = useState<any[]>([])
-  const [existingRating, setExistingRating] = useState<any>(null)
+  const [request, setRequest] = useState<DemoRequest | null>(null)
+  const [comments, setComments] = useState<DemoComment[]>([])
+  const [logs, setLogs] = useState<DemoActivityLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [commentText, setCommentText] = useState('')
-  const [commenting, setCommenting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  const fetchData = async () => {
-    try {
-      const supabase = createClient()
-      const { data: reqData } = await supabase
-        .from('service_requests')
-        .select('*, departments(name)')
-        .eq('id', requestId)
-        .maybeSingle()
+  // Comment input
+  const [newComment, setNewComment] = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
 
-      if (reqData) {
-        setRequest(reqData)
-      }
+  // Rating input
+  const [selectedRating, setSelectedRating] = useState(5)
+  const [feedback, setFeedback] = useState('')
+  const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
-      // Attachments
-      const { data: attachData } = await supabase
-        .from('request_attachments')
-        .select('*')
-        .eq('request_id', requestId)
-
-      if (attachData) setAttachments(attachData)
-
-      // Activity logs
-      const { data: logsData } = await supabase
-        .from('activity_logs')
-        .select('action, created_at')
-        .eq('request_id', requestId)
-        .order('created_at', { ascending: false })
-
-      if (logsData) setActivityLogs(logsData)
-
-      // Comments
-      const { data: commentsData } = await supabase
-        .from('request_comments')
-        .select('*, profiles(full_name, role)')
-        .eq('request_id', requestId)
-        .order('created_at', { ascending: true })
-
-      if (commentsData) {
-        setComments(commentsData)
-      }
-
-      // Rating
-      const { data: ratingData } = await supabase
-        .from('ratings')
-        .select('*')
-        .eq('request_id', requestId)
-        .maybeSingle()
-
-      if (ratingData) {
-        setExistingRating(ratingData)
-      }
-    } catch (err) {
-      console.error('Error fetching request data:', err)
-    } finally {
-      setLoading(false)
+  const loadTicket = () => {
+    const r = getDemoRequestById(requestId)
+    if (r) {
+      setRequest(r)
+      setComments(getDemoComments(r.id))
+      setLogs(getDemoLogs(r.id))
     }
+    setLoading(false)
   }
 
   useEffect(() => {
-    if (requestId) {
-      fetchData()
+    loadTicket()
 
-      // Realtime subscription for status updates and comments
-      const supabase = createClient()
-      const channel = supabase
-        .channel(`student-request-${requestId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'service_requests',
-            filter: `id=eq.${requestId}`,
-          },
-          () => {
-            fetchData()
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'request_comments',
-            filter: `request_id=eq.${requestId}`,
-          },
-          () => {
-            fetchData()
-          }
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
+    const handleUpdate = () => loadTicket()
+    window.addEventListener('demo-data-changed', handleUpdate)
+    return () => window.removeEventListener('demo-data-changed', handleUpdate)
   }, [requestId])
 
-  const handleCommentSubmit = async (e: React.FormEvent) => {
+  const handleSendComment = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!commentText.trim()) return
+    if (!newComment.trim() || !request) return
 
-    setCommenting(true)
-    setError(null)
+    setSubmittingComment(true)
+    const user = getCurrentDemoUser()
+    addDemoComment(request.id, newComment.trim(), user.name, user.role)
+    setNewComment('')
+    setComments(getDemoComments(request.id))
+    setSubmittingComment(false)
+  }
 
-    try {
-      const formData = new FormData()
-      formData.append('requestId', requestId)
-      formData.append('comment', commentText.trim())
-
-      const result = await addComment(formData)
-
-      if (result?.error) {
-        setError(result.error)
-      } else {
-        setCommentText('')
-        await fetchData()
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to submit comment')
-    } finally {
-      setCommenting(false)
-    }
+  const handleRate = () => {
+    if (!request) return
+    const user = getCurrentDemoUser()
+    rateDemoRequest(request.id, selectedRating, feedback, user.id)
+    setRatingSubmitted(true)
   }
 
   if (loading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-        <p className="text-sm font-medium text-slate-400">Loading Request Details...</p>
-      </div>
-    )
+    return <LoadingState message="Loading ticket details..." />
   }
 
   if (!request) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center p-4">
-        <GlassCard className="p-8 text-center max-w-md w-full">
-          <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-3 opacity-90" />
-          <h2 className="text-lg font-bold text-white mb-2">Request Not Found</h2>
-          <p className="text-sm text-slate-400 mb-6">
-            The requested service ticket does not exist or you do not have permission to view it.
+      <div className="max-w-2xl mx-auto py-12 text-center font-sans">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+          <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+          <h2 className="text-lg font-bold text-slate-900">Ticket Not Found</h2>
+          <p className="text-xs text-slate-500">
+            The requested ticket identifier could not be located in current records.
           </p>
           <Link
-            href="/student/dashboard"
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-cyan-500/20"
+            href="/student/requests"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition"
           >
-            Return to Dashboard
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Return to My Requests</span>
           </Link>
-        </GlassCard>
+        </div>
       </div>
     )
   }
 
-  const statusFlow = ['SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
-  const currentIndex = statusFlow.indexOf(request.status)
+  const timelineSteps = [
+    { key: 'SUBMITTED', label: 'Submitted', done: true },
+    {
+      key: 'ASSIGNED',
+      label: 'Assigned',
+      done: ['ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(request.status),
+    },
+    {
+      key: 'IN_PROGRESS',
+      label: 'In Progress',
+      done: ['IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(request.status),
+    },
+    {
+      key: 'RESOLVED',
+      label: 'Resolved',
+      done: ['RESOLVED', 'CLOSED'].includes(request.status),
+    },
+    {
+      key: 'CLOSED',
+      label: 'Closed',
+      done: request.status === 'CLOSED',
+    },
+  ]
+
+  const isResolvedOrClosed = request.status === 'RESOLVED' || request.status === 'CLOSED'
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Navigation Breadcrumb */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 pb-16 font-sans">
+      {/* Back button */}
+      <div>
         <Link
-          href="/student/requests"
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-cyan-400 transition"
+          href="/student/dashboard"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to My Requests</span>
+          <span>Back to Student Dashboard</span>
         </Link>
-        <span className="text-xs font-mono text-slate-500 bg-slate-900/60 px-3 py-1 rounded-lg border border-slate-800">
-          ID: {request.id.slice(0, 8)}
-        </span>
       </div>
 
-      {/* Main Details Card */}
-      <GlassCard className="p-6 sm:p-8 space-y-8" glow>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800/80 pb-6">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/50 shadow-inner">
-                {request.ticket_number || 'SR-0000'}
+      {/* Ticket Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                {request.ticketNumber}
               </span>
-              <PriorityBadge priority={request.priority} />
               <StatusBadge status={request.status} />
-              <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
-                {request.category}
-              </span>
+              <PriorityBadge priority={request.priority} />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
               {request.title}
             </h1>
-            <p className="text-xs text-slate-400 flex items-center space-x-1.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <span>Created on {new Date(request.created_at).toLocaleString()}</span>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+              <span>{request.location}</span>
+              {request.room && <span>• Room {request.room}</span>}
             </p>
           </div>
-        </div>
 
-        {/* Status Lifecycle Tracker */}
-        <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Lifecycle Milestone Progression</span>
-            </span>
-            <span className="text-xs font-bold text-cyan-400 bg-cyan-950/40 px-2.5 py-0.5 rounded border border-cyan-900/50">
-              Current: {request.status.replace('_', ' ')}
-            </span>
-          </div>
-
-          <div className="relative flex items-center justify-between py-3 px-2 sm:px-6">
-            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full z-0"></div>
-            <div
-              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700 rounded-full z-0"
-              style={{
-                width: `${Math.max(0, (currentIndex / (statusFlow.length - 1)) * 100)}%`,
-              }}
-            ></div>
-
-            {statusFlow.map((s, idx) => {
-              const isPassed = idx < currentIndex
-              const isCurrent = idx === currentIndex
-              return (
-                <div key={s} className="relative z-10 flex flex-col items-center">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      isCurrent
-                        ? 'bg-cyan-500 text-slate-950 ring-4 ring-cyan-500/20 shadow-lg shadow-cyan-500/40 scale-110'
-                        : isPassed
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-slate-900 border-2 border-slate-700 text-slate-500'
-                    }`}
-                  >
-                    {isPassed ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
-                  </div>
-                  <span
-                    className={`text-[11px] mt-2 font-medium tracking-tight whitespace-nowrap hidden sm:block ${
-                      isCurrent
-                        ? 'text-cyan-400 font-bold'
-                        : isPassed
-                        ? 'text-slate-300'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    {s.replace('_', ' ')}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Resolution Banner */}
-        {request.status === 'RESOLVED' && (
-          <div className="p-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-3 backdrop-blur-md">
-            <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <span>Service Request Marked as Resolved by Campus Operations</span>
+          <div className="text-right text-xs text-slate-400">
+            <div>Submitted {new Date(request.createdAt).toLocaleDateString()}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              Last updated {new Date(request.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
-            {request.resolution_note && (
-              <div className="bg-slate-950/60 p-4 rounded-xl border border-emerald-500/20 text-xs text-slate-200">
-                <span className="font-semibold text-emerald-400 block mb-1">Resolution Summary:</span>
-                <p className="leading-relaxed text-slate-300">{request.resolution_note}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT COLUMN: Request details, Attachment, Resolution, Rating, Comments */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Details Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
+              Request Details
+            </h2>
+
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase block mb-1">
+                Description
+              </span>
+              <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                {request.description}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Category</span>
+                <span className="text-xs font-bold text-slate-800">{request.category}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Priority</span>
+                <span className="text-xs font-bold text-slate-800">{request.priority}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Assigned Domain</span>
+                <span className="text-xs font-bold text-emerald-700">{request.department}</span>
+              </div>
+            </div>
+
+            {/* Photo Attachment if present */}
+            {request.imageUrl && (
+              <div className="pt-3 border-t border-slate-100">
+                <span className="text-xs font-bold text-slate-700 block mb-2 flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Photo Evidence / Attachment:</span>
+                </span>
+                <div className="max-w-md rounded-xl overflow-hidden border border-slate-200 shadow-2xs">
+                  <img
+                    src={request.imageUrl}
+                    alt="Service request attachment"
+                    className="w-full h-56 object-cover"
+                  />
+                </div>
               </div>
             )}
-            {request.resolution_attachment_url && (
-              <a
-                href={request.resolution_attachment_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center space-x-2 text-xs text-cyan-400 hover:text-cyan-300 hover:underline pt-1"
-              >
-                <Paperclip className="w-3.5 h-3.5" />
-                <span>View Attached Resolution Verification Image</span>
-              </a>
-            )}
           </div>
-        )}
 
-        {/* Rating Submission Card (if Resolved/Closed) */}
-        {(request.status === 'RESOLVED' || request.status === 'CLOSED') && (
-          <RatingCard
-            requestId={requestId}
-            existingRating={existingRating}
-            onRatingSubmitted={fetchData}
-          />
-        )}
+          {/* AI Recommendation Summary Box */}
+          {request.aiRecommendation && (
+            <div className="bg-emerald-50/50 rounded-2xl border border-emerald-200 p-5 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-emerald-900">
+                  AI Triage & Routing Analysis
+                </span>
+              </div>
+              <p className="text-xs text-slate-700">
+                {request.aiRecommendation.summary}
+              </p>
+              <p className="text-[11px] text-slate-500 italic">
+                Reasoning: {request.aiRecommendation.reasoning}
+              </p>
+            </div>
+          )}
 
-        {/* Issue Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-          <div className="space-y-4">
-            <h3 className="font-bold text-white text-sm border-b border-slate-800 pb-2.5 flex items-center space-x-2">
-              <FileText className="w-4 h-4 text-cyan-400" />
-              <span>Ticket Specifications</span>
-            </h3>
-            
+          {/* Resolution Card (when resolved) */}
+          {isResolvedOrClosed && request.resolutionNote && (
+            <div className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-2xs space-y-3">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <CheckCircle2 className="w-5 h-5" />
+                <h2 className="text-sm font-bold text-slate-900">
+                  Technician Resolution Report
+                </h2>
+              </div>
+              <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                {request.resolutionNote}
+              </p>
+              {request.resolvedAt && (
+                <div className="text-[11px] text-slate-400">
+                  Resolved on {new Date(request.resolvedAt).toLocaleString()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Rating Card (after resolution) */}
+          {isResolvedOrClosed && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Rate Your Experience</h3>
+                  <p className="text-xs text-slate-500">
+                    How satisfied are you with the resolution of this service ticket?
+                  </p>
+                </div>
+                {ratingSubmitted && (
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                    ✓ Feedback Recorded
+                  </span>
+                )}
+              </div>
+
+              {!ratingSubmitted ? (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setSelectedRating(star)}
+                        className="p-1 hover:scale-110 transition cursor-pointer"
+                      >
+                        <Star
+                          className={`w-6 h-6 ${
+                            star <= selectedRating
+                              ? 'text-amber-400 fill-amber-400'
+                              : 'text-slate-300'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-xs font-bold text-slate-700">
+                      {selectedRating} out of 5 Stars
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={2}
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="Optional feedback about the technician's timeliness or work quality..."
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleRate}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition cursor-pointer"
+                  >
+                    Submit Rating
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50 rounded-xl text-xs text-emerald-800">
+                  Thank you! Your feedback helps our facilities operations maintain campus quality.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Comments Section */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+              <span>Activity & Comments ({comments.length})</span>
+            </h2>
+
+            {comments.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3 text-center">
+                No comments posted yet. Add a message below.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {comments.map((c) => (
+                  <div key={c.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        {c.authorName}
+                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200">
+                          {c.authorRole}
+                        </span>
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-slate-700 mt-1 whitespace-pre-wrap">{c.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleSendComment} className="pt-2 flex gap-2">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Write a message or update..."
+                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={submittingComment || !newComment.trim()}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send</span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Request metadata, Staff Assigned, Progress Timeline */}
+        <div className="space-y-6">
+          {/* Metadata Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
+              Ticket Information
+            </h2>
+
             <div className="space-y-3 text-xs">
               <div>
-                <span className="text-slate-400 block font-medium mb-1.5">Problem Description</span>
-                <div className="text-slate-200 bg-slate-900/60 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap leading-relaxed">
-                  {request.description}
-                </div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">
+                  Assigned Technician
+                </span>
+                <span className="font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
+                  <Wrench className="w-3.5 h-3.5 text-emerald-600" />
+                  {request.assignedStaffName || 'Pending Assignment'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Campus Area</span>
-                  <span className="font-semibold text-slate-200 mt-1 flex items-center space-x-1.5 text-xs">
-                    <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{request.location || 'Main Campus'}</span>
-                  </span>
-                </div>
-
-                <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
-                  <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Building & Unit</span>
-                  <span className="font-semibold text-slate-200 mt-1 flex items-center space-x-1.5 text-xs">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                    <span className="truncate">{request.building || 'General'}{request.room_number ? ` • Room ${request.room_number}` : ''}</span>
-                  </span>
-                </div>
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">
+                  Service Department
+                </span>
+                <span className="font-semibold text-slate-700 mt-0.5 block">
+                  {request.department}
+                </span>
               </div>
 
-              {attachments.length > 0 && (
-                <div className="pt-2">
-                  <span className="text-slate-400 block font-medium mb-2">Attached Documentation</span>
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((att) => (
-                      <a
-                        key={att.id}
-                        href={att.file_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center space-x-2 px-3.5 py-2 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl text-cyan-400 hover:text-cyan-300 transition text-xs"
-                      >
-                        <Paperclip className="w-3.5 h-3.5" />
-                        <span className="truncate max-w-[200px]">{att.file_name}</span>
-                        <ExternalLink className="w-3 h-3 text-slate-500" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">
+                  Student Submitter
+                </span>
+                <span className="font-semibold text-slate-700 mt-0.5 block">
+                  {request.studentName}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase block">
+                  Reported Location
+                </span>
+                <span className="font-semibold text-slate-700 mt-0.5 block">
+                  {request.location} {request.room ? `(${request.room})` : ''}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Activity Logs Timeline */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-white text-sm border-b border-slate-800 pb-2.5 flex items-center space-x-2">
-              <History className="w-4 h-4 text-indigo-400" />
-              <span>Activity & Status Log</span>
-            </h3>
+          {/* Activity Timeline */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
+              Progress Timeline
+            </h2>
 
-            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-              {activityLogs.length === 0 ? (
-                <p className="text-xs text-slate-500 italic p-3">No activity recorded yet.</p>
-              ) : (
-                activityLogs.map((log, idx) => (
-                  <div key={idx} className="flex items-start space-x-3 text-xs bg-slate-900/30 p-3 rounded-xl border border-slate-800/50">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 shrink-0 ring-4 ring-cyan-500/20"></div>
-                    <div>
-                      <p className="font-semibold text-slate-200">{log.action}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
-                    </div>
+            <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+              {timelineSteps.map((step) => (
+                <div key={step.key} className="relative flex items-center justify-between text-xs">
+                  <div
+                    className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center ${
+                      step.done
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border-2 border-slate-300 text-transparent'
+                    }`}
+                  >
+                    {step.done && <Check className="w-3 h-3 stroke-[3]" />}
                   </div>
-                ))
-              )}
+
+                  <span
+                    className={`font-semibold ${
+                      step.done ? 'text-slate-900' : 'text-slate-400'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+
+                  {step.done && (
+                    <span className="text-[10px] text-emerald-700 font-bold">
+                      Completed
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </GlassCard>
-
-      {/* Discussion / Comments Section */}
-      <GlassCard className="p-6 sm:p-8 space-y-6">
-        <h2 className="text-base font-bold text-white border-b border-slate-800 pb-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <MessageSquare className="w-4 h-4 text-cyan-400" />
-            <span>Discussion Thread</span>
-          </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
-            {comments.length} {comments.length === 1 ? 'Message' : 'Messages'}
-          </span>
-        </h2>
-
-        <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-          {comments.length === 0 ? (
-            <div className="text-center py-8">
-              <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-              <p className="text-xs text-slate-400">No comments posted yet. Send a note to the operations team below.</p>
-            </div>
-          ) : (
-            comments.map((c) => (
-              <div key={c.id} className="p-4 bg-slate-900/60 rounded-xl border border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-white">{c.profiles?.full_name || 'Campus Member'}</span>
-                    {c.profiles?.role && (
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        c.profiles.role === 'STAFF'
-                          ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-800/60'
-                          : c.profiles.role === 'ADMIN'
-                          ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
-                          : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
-                      }`}>
-                        {c.profiles.role}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-slate-500">{new Date(c.created_at).toLocaleString()}</span>
-                </div>
-                <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{c.comment}</p>
-              </div>
-            ))
-          )}
-        </div>
-
-        <form onSubmit={handleCommentSubmit} className="pt-4 border-t border-slate-800 space-y-3">
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-          <textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add additional details or communicate with assigned campus staff..."
-            rows={3}
-            className="w-full px-4 py-3 text-sm bg-slate-900/70 border border-slate-800 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500/80 focus:ring-2 focus:ring-cyan-500/20 transition resize-none"
-          />
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={commenting || !commentText.trim()}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-cyan-500/20"
-            >
-              {commenting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              <span>Post Comment</span>
-            </button>
-          </div>
-        </form>
-      </GlassCard>
+      </div>
     </div>
   )
 }

@@ -1,392 +1,473 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { 
-  ClipboardList, 
-  Clock, 
-  PlayCircle, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
-  Users, 
-  BarChart3, 
-  CheckCircle, 
-  XCircle,
-  Timer,
+import {
+  ClipboardList,
+  Clock,
+  PlayCircle,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  Users,
+  BarChart3,
   ShieldCheck,
   AlertTriangle,
-  UserCheck,
   MapPin,
   Sparkles,
-  Layers
+  Layers,
+  Search,
+  Check,
+  UserCheck,
+  Eye,
+  Filter,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { GlassCard } from '@/components/ui/GlassCard'
 import { StatCard } from '@/components/ui/StatCard'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { AnalyticsCharts } from '@/components/admin/AnalyticsCharts'
+import {
+  getDemoRequests,
+  getPriorityQueue,
+  assignDemoRequest,
+  getAllDemoUsers,
+} from '@/lib/demo/demo-service'
+import { DemoRequest, DemoUser } from '@/lib/demo/types'
 
-export const dynamic = 'force-dynamic'
+export default function AdminDashboardPage() {
+  const [requests, setRequests] = useState<DemoRequest[]>([])
+  const [priorityQueue, setPriorityQueue] = useState<DemoRequest[]>([])
+  const [staffMembers, setStaffMembers] = useState<DemoUser[]>([])
+  const [loading, setLoading] = useState(true)
 
-export default async function AdminDashboardPage() {
-  const supabase = await createClient()
+  // Filters for bottom table
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
+  // One-click assign state feedback
+  const [justAssignedId, setJustAssignedId] = useState<string | null>(null)
+
+  const loadData = () => {
+    const all = getDemoRequests()
+    setRequests(all)
+    setPriorityQueue(getPriorityQueue())
+    const users = getAllDemoUsers()
+    setStaffMembers(users.filter((u) => u.role === 'STAFF'))
+    setLoading(false)
   }
 
-  // Fetch admin profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, role')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  useEffect(() => {
+    loadData()
 
-  if (profile?.role !== 'ADMIN') {
-    redirect('/login')
-  }
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-data-changed', handleUpdate)
+    window.addEventListener('demo-user-changed', handleUpdate)
 
-  // Query all campus service requests
-  const { data: requests, error } = await supabase
-    .from('service_requests')
-    .select(`
-      id,
-      ticket_number,
-      title,
-      description,
-      category,
-      priority,
-      status,
-      location,
-      building,
-      room_number,
-      created_at,
-      assigned_at,
-      resolved_at,
-      closed_at,
-      departments ( name )
-    `)
-    .order('created_at', { ascending: false })
-
-  const allRequests = requests || []
-
-  // Metrics
-  const total = allRequests.length
-  const submitted = allRequests.filter((r) => r.status === 'SUBMITTED').length
-  const assigned = allRequests.filter((r) => r.status === 'ASSIGNED').length
-  const inProgress = allRequests.filter((r) => r.status === 'IN_PROGRESS').length
-  const resolved = allRequests.filter((r) => r.status === 'RESOLVED').length
-  const closed = allRequests.filter((r) => r.status === 'CLOSED').length
-  const critical = allRequests.filter((r) => r.priority === 'CRITICAL').length
-
-  // Calculate Average Resolution Time
-  const resolvedRequests = allRequests.filter((r) => r.resolved_at && r.created_at)
-  let avgResolutionTimeStr = 'N/A'
-  if (resolvedRequests.length > 0) {
-    const totalMs = resolvedRequests.reduce((sum, r) => {
-      const created = new Date(r.created_at).getTime()
-      const resolvedDate = new Date(r.resolved_at!).getTime()
-      return sum + Math.max(0, resolvedDate - created)
-    }, 0)
-    const avgHours = Math.round((totalMs / resolvedRequests.length) / (1000 * 60 * 60))
-    if (avgHours < 24) {
-      avgResolutionTimeStr = `${avgHours} hrs`
-    } else {
-      const avgDays = (avgHours / 24).toFixed(1)
-      avgResolutionTimeStr = `${avgDays} days`
+    return () => {
+      window.removeEventListener('demo-data-changed', handleUpdate)
+      window.removeEventListener('demo-user-changed', handleUpdate)
     }
+  }, [])
+
+  const handleQuickAssign = (requestId: string, staffNameOrId: string) => {
+    assignDemoRequest(requestId, staffNameOrId)
+    setJustAssignedId(requestId)
+    setTimeout(() => setJustAssignedId(null), 3000)
+    loadData()
   }
 
-  // Requests needing staff assignment
-  const unassignedRequests = allRequests.filter((r) => r.status === 'SUBMITTED').slice(0, 5)
+  if (loading) {
+    return <LoadingState message="Loading administrative command center..." />
+  }
 
-  // Critical/High priority requests
-  const urgentRequests = allRequests.filter(
-    (r) => (r.priority === 'CRITICAL' || r.priority === 'HIGH') && r.status !== 'RESOLVED' && r.status !== 'CLOSED'
-  ).slice(0, 5)
+  // Calculate live statistics
+  const total = requests.length
+  const submitted = requests.filter((r) => r.status === 'SUBMITTED').length
+  const inProgress = requests.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'ASSIGNED').length
+  const resolved = requests.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+  const critical = requests.filter((r) => r.priority === 'CRITICAL').length
+  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0
 
-  // Recent 6 requests
-  const recentRequests = allRequests.slice(0, 6)
+  // Chart datasets
+  const statusData = [
+    { name: 'SUBMITTED', count: submitted },
+    { name: 'ASSIGNED', count: requests.filter((r) => r.status === 'ASSIGNED').length },
+    { name: 'IN_PROGRESS', count: requests.filter((r) => r.status === 'IN_PROGRESS').length },
+    { name: 'RESOLVED', count: requests.filter((r) => r.status === 'RESOLVED').length },
+    { name: 'CLOSED', count: requests.filter((r) => r.status === 'CLOSED').length },
+  ]
+
+  const categoryCounts: Record<string, number> = {}
+  requests.forEach((r) => {
+    categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1
+  })
+  const categoryData = Object.entries(categoryCounts).map(([name, count]) => ({
+    name,
+    count,
+  }))
+
+  const priorityData = [
+    { name: 'CRITICAL', count: critical },
+    { name: 'HIGH', count: requests.filter((r) => r.priority === 'HIGH').length },
+    { name: 'MEDIUM', count: requests.filter((r) => r.priority === 'MEDIUM').length },
+    { name: 'LOW', count: requests.filter((r) => r.priority === 'LOW').length },
+  ]
+
+  const timelineData = [
+    { date: 'Day 1', requests: 4 },
+    { date: 'Day 3', requests: 6 },
+    { date: 'Day 6', requests: 3 },
+    { date: 'Day 9', requests: 7 },
+    { date: 'Day 12', requests: 9 },
+    { date: 'Today', requests: requests.length },
+  ]
+
+  // Filtered requests for main table
+  const filteredRequests = requests.filter((req) => {
+    const matchesSearch =
+      req.ticketNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      req.title?.toLowerCase().includes(search.toLowerCase()) ||
+      req.studentName?.toLowerCase().includes(search.toLowerCase()) ||
+      req.location?.toLowerCase().includes(search.toLowerCase())
+
+    const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
+    const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
+
+    return matchesSearch && matchesStatus && matchesCategory
+  })
+
+  // Unassigned or urgent requests waiting in Priority Queue
+  const urgentQueue = priorityQueue.slice(0, 6)
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Top Banner / Welcome */}
-      <GlassCard className="p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" glow>
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
-              <ShieldCheck className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Administrative Command Center
-            </h1>
+    <div className="space-y-8 pb-16 font-sans">
+      {/* Top Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Central Facilities Governance Console</span>
           </div>
-          <p className="text-slate-400 text-sm">
-            Superuser Session: <span className="font-semibold text-slate-200">{profile?.full_name || 'Administrator'}</span>
-            <span className="text-slate-500"> • Realtime Campus Service & Facilities Matrix</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Administration Dashboard
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Campus-wide request oversight, AI dispatch recommendations, and resource analytics
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/admin/requests"
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition"
+          >
+            Manage Requests ({total})
+          </Link>
           <Link
             href="/admin/staff"
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-semibold rounded-xl text-xs transition"
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center gap-1.5"
           >
-            <Users className="w-4 h-4 text-indigo-400" />
+            <Users className="w-3.5 h-3.5" />
             <span>Staff Directory</span>
           </Link>
-
-          <Link
-            href="/admin/analytics"
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-cyan-500/20"
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>Operations Analytics</span>
-          </Link>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Top Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+      {/* 5 Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
-          title="Total Volume"
+          title="Total Requests"
           value={total}
+          subtitle="All submitted campus tickets"
           icon={ClipboardList}
-          color="blue"
-          subtitle="All tickets"
+          color="green"
         />
+
         <StatCard
-          title="Unassigned"
-          value={submitted}
+          title="Open Requests"
+          value={submitted + inProgress}
+          subtitle="Awaiting resolution"
           icon={Clock}
-          color="amber"
-          subtitle="Pending staff"
+          color="blue"
         />
-        <StatCard
-          title="In Queue"
-          value={assigned}
-          icon={UserCheck}
-          color="purple"
-          subtitle="With technicians"
-        />
-        <StatCard
-          title="In Progress"
-          value={inProgress}
-          icon={PlayCircle}
-          color="indigo"
-          subtitle="Under repair"
-        />
+
         <StatCard
           title="Resolved"
           value={resolved}
+          subtitle="Completed tickets"
           icon={CheckCircle2}
           color="emerald"
-          subtitle="Awaiting signoff"
         />
+
         <StatCard
-          title="Closed"
-          value={closed}
-          icon={CheckCircle}
-          color="blue"
-          subtitle="Completed"
-        />
-        <StatCard
-          title="Critical"
+          title="Critical Issues"
           value={critical}
-          icon={AlertCircle}
+          subtitle="Highest severity SLA"
+          icon={AlertTriangle}
           color="rose"
-          subtitle="Urgent triage"
+        />
+
+        <StatCard
+          title="Resolution Rate"
+          value={`${resolutionRate}%`}
+          subtitle="Overall success benchmark"
+          icon={BarChart3}
+          color="indigo"
         />
       </div>
 
-      {/* SLA Resolution Performance Card */}
-      <GlassCard className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center space-x-3.5">
-          <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
-            <Timer className="w-5 h-5" />
-          </div>
+      {/* AI PRIORITY QUEUE & AUTOMATIC STAFF RECOMMENDATIONS */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-linear-to-r from-emerald-50/50 via-white to-slate-50">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-              <span>Campus Service Resolution Velocity</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 uppercase">
-                SLA Metric
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Average elapsed time from initial student submission to verified technical resolution</p>
-          </div>
-        </div>
-        <div className="flex items-baseline space-x-2">
-          <span className="text-3xl font-extrabold text-cyan-400 font-mono">{avgResolutionTimeStr}</span>
-          <span className="text-xs text-slate-500">mean turnaround</span>
-        </div>
-      </GlassCard>
-
-      {/* Grid: Unassigned Waiting Queue & High Priority Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Unassigned Waiting Queue */}
-        <GlassCard className="p-0 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                <span>Unassigned Requests ({submitted})</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Requires administrative staff delegation</p>
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider mb-1">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              <span>Intelligent Dispatch Queue</span>
             </div>
-            <Link
-              href="/admin/requests?status=SUBMITTED"
-              className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center space-x-1"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {unassignedRequests.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
-              No unassigned tickets pending. All student requests have been delegated.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800/80">
-              {unassignedRequests.map((req) => (
-                <Link
-                  key={req.id}
-                  href={`/admin/requests/${req.id}`}
-                  className="p-4 hover:bg-slate-900/60 transition flex items-center justify-between gap-3 block group"
-                >
-                  <div className="space-y-1 truncate">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono text-xs font-bold text-cyan-400">{req.ticket_number || 'SR-0000'}</span>
-                      <PriorityBadge priority={req.priority} />
-                      <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{req.category}</span>
-                    </div>
-                    <p className="text-xs font-semibold text-white group-hover:text-cyan-400 transition truncate">{req.title}</p>
-                    <p className="text-[11px] text-slate-500">{req.location || 'Campus'} {req.building ? `• ${req.building}` : ''}</p>
-                  </div>
-                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold group-hover:bg-amber-500 group-hover:text-slate-950 transition">
-                    Assign Staff
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </GlassCard>
-
-        {/* High / Critical Priority Issues */}
-        <GlassCard className="p-0 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 text-rose-400" />
-                <span>Urgent / High Priority Issues ({critical})</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">High SLA sensitivity demanding oversight</p>
-            </div>
-            <Link
-              href="/admin/requests?priority=CRITICAL"
-              className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center space-x-1"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {urgentRequests.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
-              No critical or high-priority tickets requiring immediate attention.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-800/80">
-              {urgentRequests.map((req) => (
-                <Link
-                  key={req.id}
-                  href={`/admin/requests/${req.id}`}
-                  className="p-4 hover:bg-slate-900/60 transition flex items-center justify-between gap-3 block group"
-                >
-                  <div className="space-y-1 truncate">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono text-xs font-bold text-rose-400">{req.ticket_number || 'SR-0000'}</span>
-                      <PriorityBadge priority={req.priority} />
-                      <StatusBadge status={req.status} />
-                    </div>
-                    <p className="text-xs font-semibold text-white group-hover:text-rose-400 transition truncate">{req.title}</p>
-                    <p className="text-[11px] text-slate-500">{req.location || 'Campus'} {req.building ? `• ${req.building}` : ''}</p>
-                  </div>
-                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-bold group-hover:bg-rose-500 group-hover:text-white transition">
-                    Inspect
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </GlassCard>
-      </div>
-
-      {/* Recent Requests Feed */}
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-800 flex justify-between items-center">
-          <div>
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <span>Campus Service Activity Stream</span>
+            <h2 className="text-base font-bold text-slate-900">
+              AI Priority Queue & Automatic Staff Assignment
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Most recently submitted requests across all campus departments</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Ranked automatically by SLA Severity (Critical → High) with specialist matching
+            </p>
           </div>
-          <Link
-            href="/admin/requests"
-            className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center space-x-1"
-          >
-            <span>Full Ticket Database ({total})</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <span className="text-xs font-semibold text-emerald-700 bg-white px-3 py-1.5 rounded-lg border border-emerald-200">
+            {urgentQueue.length} Priority Tickets
+          </span>
         </div>
 
-        {recentRequests.length === 0 ? (
-          <div className="py-16 text-center text-xs text-slate-500">
-            No service requests registered in the campus platform database yet.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-800/80">
-            {recentRequests.map((req) => (
-              <Link
+        <div className="divide-y divide-slate-100">
+          {urgentQueue.map((req) => {
+            const suggestedStaff =
+              req.aiRecommendation?.suggestedStaff ||
+              (req.category === 'IT Support'
+                ? 'Vikram Rao'
+                : req.category === 'Electrical'
+                ? 'Suresh Kumar'
+                : 'Anjali Devi')
+
+            const isAssigned = req.status !== 'SUBMITTED'
+            const isJustAssigned = justAssignedId === req.id
+
+            return (
+              <div
                 key={req.id}
-                href={`/admin/requests/${req.id}`}
-                className="p-5 hover:bg-slate-900/60 transition flex flex-col md:flex-row md:items-center justify-between gap-4 block group"
+                className="p-5 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-950/60 px-2.5 py-0.5 rounded-lg border border-cyan-800/60">
-                      {req.ticket_number || 'SR-0000'}
+                    <span className="font-mono text-xs font-bold text-emerald-700 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                      {req.ticketNumber}
                     </span>
                     <PriorityBadge priority={req.priority} />
                     <StatusBadge status={req.status} />
-                    <span className="text-xs font-medium text-slate-300 bg-slate-800/80 px-2.5 py-0.5 rounded-lg border border-slate-700/50">
+                    <span className="text-xs font-medium text-slate-500">
                       {req.category}
                     </span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-slate-400" />
+                      <span>{req.location}</span>
+                    </span>
                   </div>
-                  <h3 className="text-sm font-semibold text-white group-hover:text-cyan-400 transition">
+
+                  <h3 className="text-sm font-bold text-slate-900">
                     {req.title}
                   </h3>
-                  <div className="flex items-center space-x-4 text-xs text-slate-400">
-                    <span className="flex items-center space-x-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{req.location || 'Campus'} {req.building ? `• ${req.building}` : ''}</span>
-                    </span>
-                    <span>Created: {new Date(req.created_at).toLocaleDateString()}</span>
-                  </div>
+
+                  <p className="text-xs text-slate-600 line-clamp-1">
+                    {req.description}
+                  </p>
+
+                  {/* AI Recommendation Reason */}
+                  {req.aiRecommendation && (
+                    <div className="text-[11px] text-emerald-800 bg-emerald-50/80 px-2.5 py-1 rounded-md border border-emerald-200 inline-flex items-center gap-1.5 mt-1">
+                      <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>
+                        AI Reason: <em>{req.aiRecommendation.reasoning}</em>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center self-end md:self-center">
-                  <span className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 group-hover:bg-cyan-500 group-hover:text-slate-950 transition">
-                    <span>Manage</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
+                {/* Assignment Controls */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase font-bold text-slate-400">
+                      Suggested Staff:
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">
+                      {req.assignedStaffName || suggestedStaff}
+                    </div>
+                  </div>
+
+                  {!isAssigned ? (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAssign(req.id, suggestedStaff)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Assign to {suggestedStaff.split(' ')[0]}</span>
+                    </button>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Assigned to {req.assignedStaffName}</span>
+                    </span>
+                  )}
+
+                  <Link
+                    href={`/admin/requests/${req.id}`}
+                    className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
+                    title="Review Ticket Details"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Link>
                 </div>
-              </Link>
-            ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Analytics Charts */}
+      <AnalyticsCharts
+        statusData={statusData}
+        categoryData={categoryData}
+        priorityData={priorityData}
+        departmentData={[]}
+        timelineData={timelineData}
+      />
+
+      {/* Admin Full Request Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">All Campus Service Tickets</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live operational register with multi-attribute filtering
+            </p>
           </div>
-        )}
-      </GlassCard>
+          <Link
+            href="/admin/requests"
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+          >
+            Open Dedicated Table →
+          </Link>
+        </div>
+
+        {/* Filters */}
+        <div className="p-4 bg-slate-50/50 border-b border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-6 relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search ticket #, title, student, location..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter by Status"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="SUBMITTED">Submitted</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                aria-label="Filter by Category"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Categories</option>
+                <option value="IT Support">IT Support</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Hostel">Hostel</option>
+                <option value="Cleaning">Cleaning</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+              <tr>
+                <th className="py-3 px-6">Ticket</th>
+                <th className="py-3 px-6">Issue & Location</th>
+                <th className="py-3 px-6">Category</th>
+                <th className="py-3 px-6">Priority</th>
+                <th className="py-3 px-6">Student</th>
+                <th className="py-3 px-6">Assigned Staff</th>
+                <th className="py-3 px-6">Status</th>
+                <th className="py-3 px-6 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredRequests.map((req) => (
+                <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-3.5 px-6 font-mono font-bold text-emerald-700 whitespace-nowrap">
+                    {req.ticketNumber}
+                  </td>
+                  <td className="py-3.5 px-6 max-w-xs">
+                    <div className="font-semibold text-slate-900 line-clamp-1">{req.title}</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">{req.location}</div>
+                  </td>
+                  <td className="py-3.5 px-6 font-medium text-slate-600 whitespace-nowrap">
+                    {req.category}
+                  </td>
+                  <td className="py-3.5 px-6 whitespace-nowrap">
+                    <PriorityBadge priority={req.priority} />
+                  </td>
+                  <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                    {req.studentName}
+                  </td>
+                  <td className="py-3.5 px-6 whitespace-nowrap">
+                    {req.assignedStaffName ? (
+                      <span className="font-semibold text-slate-800">{req.assignedStaffName}</span>
+                    ) : (
+                      <span className="text-slate-400 italic">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="py-3.5 px-6 whitespace-nowrap">
+                    <StatusBadge status={req.status} />
+                  </td>
+                  <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                    <Link
+                      href={`/admin/requests/${req.id}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Review</span>
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

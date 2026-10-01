@@ -10,13 +10,10 @@ export async function requestAIAnalysis(params: {
   currentCategory?: string
   currentPriority?: string
 }): Promise<{ success: boolean; data?: AIRecommendation; error?: string }> {
-  // Ensure user is authenticated
+  // In demo mode or if user is authenticated
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { success: false, error: 'Authentication required for AI analysis' }
-  }
+  // Authenticated or demo mode both allowed
 
   if (!params.title || params.title.trim().length < 3) {
     return { success: false, error: 'Please enter a title of at least 3 characters before analyzing with AI' }

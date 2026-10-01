@@ -1,125 +1,133 @@
-import { redirect } from 'next/navigation'
-import { 
-  User, 
-  Mail, 
-  ShieldCheck, 
-  Building2, 
-  ClipboardList, 
-  CheckCircle2, 
-  Clock, 
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import {
+  User,
+  Mail,
+  ShieldCheck,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
   Calendar,
-  Sparkles,
-  GraduationCap
+  GraduationCap,
+  Building,
+  ArrowLeft,
+  Home,
+  CreditCard,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { GlassCard } from '@/components/ui/GlassCard'
+import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
+import { DemoUser } from '@/lib/demo/types'
 import { StatCard } from '@/components/ui/StatCard'
 
-export const dynamic = 'force-dynamic'
+export default function StudentProfilePage() {
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
+  const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 })
 
-export default async function StudentProfilePage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect('/login')
+  const loadData = () => {
+    const user = getCurrentDemoUser()
+    setCurrentUser(user)
+    const reqs = getStudentRequests(user.id)
+    setStats({
+      total: reqs.length,
+      pending: reqs.filter((r) => r.status === 'SUBMITTED' || r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length,
+      resolved: reqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
+    })
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      email,
-      role,
-      student_id,
-      phone,
-      created_at,
-      departments ( name, description )
-    `)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  useEffect(() => {
+    loadData()
 
-  // Get request statistics for this student
-  const { data: requests } = await supabase
-    .from('service_requests')
-    .select('status')
-    .eq('student_id', user.id)
+    const handleUpdate = () => loadData()
+    window.addEventListener('demo-user-changed', handleUpdate)
+    window.addEventListener('demo-data-changed', handleUpdate)
 
-  const allReqs = requests || []
-  const total = allReqs.length
-  const inProgress = allReqs.filter((r) => r.status === 'IN_PROGRESS' || r.status === 'ASSIGNED').length
-  const resolved = allReqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length
+    return () => {
+      window.removeEventListener('demo-user-changed', handleUpdate)
+      window.removeEventListener('demo-data-changed', handleUpdate)
+    }
+  }, [])
 
-  const deptData: any = profile?.departments
-  const departmentName = deptData?.name || 'General Campus Division'
+  if (!currentUser) return null
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <GlassCard className="p-6 sm:p-8 space-y-6" glow>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-12 font-sans">
+      <div>
+        <Link
+          href="/student/dashboard"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Student Dashboard</span>
+        </Link>
+      </div>
+
+      {/* Main Profile Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 sm:p-8 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-cyan-500/20 ring-2 ring-cyan-400/30">
-              {profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : 'S'}
+            <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-2xl shadow-2xs">
+              {currentUser.name.charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold text-white tracking-tight">
-                  {profile?.full_name || 'Student Member'}
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  {currentUser.name}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 uppercase tracking-wider">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
                   Student
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 flex items-center space-x-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-cyan-400" />
+              <p className="text-xs text-slate-500 mt-1 flex items-center space-x-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Verified Campus Student Account</span>
               </p>
             </div>
           </div>
         </div>
 
-        {/* Profile Information Grid */}
+        {/* Profile Information Grid (NO Department shown for students) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Identity & Security</span>
-            </h3>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Student Identification</span>
+            </h2>
 
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Student ID
+                  </span>
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.studentId || 'STU2026001'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div className="truncate">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                     Institutional Email
                   </span>
-                  <span className="text-xs font-semibold text-slate-200 truncate block">
-                    {profile?.email || user.email}
+                  <span className="font-semibold text-slate-800 truncate block">
+                    {currentUser.email}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <GraduationCap className="w-4 h-4 text-cyan-400 shrink-0" />
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Student ID / Matriculation No.
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Academic Year
                   </span>
-                  <span className="text-xs font-semibold text-slate-200 font-mono">
-                    {profile?.student_id || 'Not Specified'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80">
-                <Calendar className="w-4 h-4 text-cyan-400 shrink-0" />
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Member Since
-                  </span>
-                  <span className="text-xs font-semibold text-slate-200">
-                    {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Active Term'}
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.year || '3rd Year'}
                   </span>
                 </div>
               </div>
@@ -127,57 +135,81 @@ export default async function StudentProfilePage() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Academic Department</span>
-            </h3>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <Home className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Campus Residence</span>
+            </h2>
 
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Enrolled Department / Faculty
-              </span>
-              <p className="text-sm font-bold text-white">
-                {departmentName}
-              </p>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Service requests submitted under this profile are automatically prioritized and routed according to campus zoning rules.
-              </p>
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Building className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Hostel Residence Block
+                  </span>
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.hostel || 'Block A'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <Home className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Room Number
+                  </span>
+                  <span className="font-semibold text-slate-800 block">
+                    {currentUser.room || 'A-204'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Account Status
+                  </span>
+                  <span className="font-semibold text-emerald-700 block">
+                    Active • In Good Standing
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Activity Summary */}
-        <div className="pt-6 border-t border-slate-800">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center space-x-1.5">
-            <ClipboardList className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Service Request Activity Metrics</span>
-          </h3>
-
+        {/* Quick Stats Grid */}
+        <div className="pt-4 border-t border-slate-100">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            Service Request Activity
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
-              title="Total Raised"
-              value={total}
+              title="Total Submitted"
+              value={stats.total}
+              subtitle="Lifetime tickets"
               icon={ClipboardList}
-              color="blue"
-              subtitle="All time requests"
+              color="green"
             />
             <StatCard
-              title="In Progress"
-              value={inProgress}
+              title="Active / In Progress"
+              value={stats.pending}
+              subtitle="Open requests"
               icon={Clock}
               color="amber"
-              subtitle="Currently being resolved"
             />
             <StatCard
               title="Resolved"
-              value={resolved}
+              value={stats.resolved}
+              subtitle="Closed tickets"
               icon={CheckCircle2}
               color="emerald"
-              subtitle="Successfully completed"
             />
           </div>
         </div>
-      </GlassCard>
+      </div>
     </div>
   )
 }

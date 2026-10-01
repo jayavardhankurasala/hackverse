@@ -7,7 +7,7 @@ interface StatCardProps {
   value: string | number
   subtitle?: string
   icon: LucideIcon
-  color?: 'blue' | 'purple' | 'amber' | 'emerald' | 'rose' | 'indigo' | 'cyan'
+  color?: 'blue' | 'purple' | 'amber' | 'emerald' | 'rose' | 'indigo' | 'cyan' | 'green'
   trend?: {
     value: string
     isPositive?: boolean
@@ -19,65 +19,69 @@ export function StatCard({
   value,
   subtitle,
   icon: Icon,
-  color = 'blue',
+  color = 'green',
   trend,
 }: StatCardProps) {
-  const colorMap: Record<string, { bg: string; glow: GlassCardGlow }> = {
-    blue: {
-      bg: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-      glow: 'blue',
-    },
-    cyan: {
-      bg: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400',
-      glow: 'cyan',
-    },
-    indigo: {
-      bg: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
-      glow: 'indigo',
-    },
-    purple: {
-      bg: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-      glow: 'purple',
-    },
-    amber: {
-      bg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-      glow: 'none',
+  const colorMap: Record<string, { bg: string; iconColor: string }> = {
+    green: {
+      bg: 'bg-emerald-50 border-emerald-100',
+      iconColor: 'text-emerald-600',
     },
     emerald: {
-      bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-      glow: 'emerald',
+      bg: 'bg-emerald-50 border-emerald-100',
+      iconColor: 'text-emerald-600',
+    },
+    blue: {
+      bg: 'bg-blue-50 border-blue-100',
+      iconColor: 'text-blue-600',
+    },
+    indigo: {
+      bg: 'bg-indigo-50 border-indigo-100',
+      iconColor: 'text-indigo-600',
+    },
+    cyan: {
+      bg: 'bg-cyan-50 border-cyan-100',
+      iconColor: 'text-cyan-600',
+    },
+    purple: {
+      bg: 'bg-purple-50 border-purple-100',
+      iconColor: 'text-purple-600',
+    },
+    amber: {
+      bg: 'bg-amber-50 border-amber-100',
+      iconColor: 'text-amber-600',
     },
     rose: {
-      bg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-      glow: 'red',
+      bg: 'bg-rose-50 border-rose-100',
+      iconColor: 'text-rose-600',
     },
   }
 
-  const { bg, glow } = colorMap[color] || colorMap.blue
+  const { bg, iconColor } = colorMap[color] || colorMap.green
 
   return (
-    <GlassCard glow={glow} hoverEffect className="flex flex-col justify-between">
+    <GlassCard hoverEffect className="flex flex-col justify-between">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           {title}
         </span>
-        <div className={`p-2.5 rounded-xl border ${bg}`}>
+        <div className={`p-2.5 rounded-lg border ${bg} ${iconColor}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
 
       <div className="mt-4">
-        <div className="text-3xl font-black tracking-tight text-white font-mono">
+        <div className="text-3xl font-extrabold tracking-tight text-slate-900 font-sans">
           {value}
         </div>
 
         {(subtitle || trend) && (
-          <div className="mt-1 flex items-center justify-between text-xs">
-            {subtitle && <span className="text-slate-400">{subtitle}</span>}
+          <div className="mt-1.5 flex items-center justify-between text-xs">
+            {subtitle && <span className="text-slate-500">{subtitle}</span>}
             {trend && (
               <span
                 className={`font-semibold ${
-                  trend.isPositive ? 'text-emerald-400' : 'text-rose-400'
+                  trend.isPositive ? 'text-emerald-600' : 'text-rose-600'
                 }`}
               >
                 {trend.value}
