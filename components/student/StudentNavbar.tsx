@@ -16,6 +16,7 @@ import {
 import { logout } from '@/actions/auth'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { DemoModeBadge } from '@/components/demo/DemoModeBadge'
+import { DashboardSwitcher } from '@/components/navigation/DashboardSwitcher'
 
 export function StudentNavbar() {
   const pathname = usePathname()
@@ -84,7 +85,7 @@ export function StudentNavbar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                     item.active
                       ? 'bg-emerald-50 text-emerald-800 font-semibold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -98,15 +99,16 @@ export function StudentNavbar() {
 
             <Link
               href="/student/requests/new"
-              className="inline-flex items-center space-x-1.5 ml-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs"
+              className="inline-flex items-center space-x-1.5 ml-2 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs"
             >
-              <PlusCircle className="w-3.5 h-3.5" />
+              <PlusCircle className="w-4 h-4" />
               <span>Report a Problem</span>
             </Link>
           </nav>
 
           {/* Right Action */}
           <div className="hidden md:flex items-center space-x-3">
+            <DashboardSwitcher />
             <DemoModeBadge />
             <NotificationBell baseRoute="/student" />
 

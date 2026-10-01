@@ -343,31 +343,31 @@ export default function StudentRequestDetailPage({
 
           {/* Comments Section */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2.5 flex items-center gap-1.5">
+              <MessageSquare className="w-4 h-4 text-emerald-600" />
               <span>Activity & Comments ({comments.length})</span>
             </h2>
 
             {comments.length === 0 ? (
-              <p className="text-xs text-slate-400 py-3 text-center">
+              <p className="text-sm text-slate-400 py-3 text-center">
                 No comments posted yet. Add a message below.
               </p>
             ) : (
               <div className="space-y-3">
                 {comments.map((c) => (
-                  <div key={c.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <div className="flex items-center justify-between mb-1">
+                  <div key={c.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-sm">
+                    <div className="flex items-center justify-between mb-1.5">
                       <span className="font-bold text-slate-900 flex items-center gap-1.5">
                         {c.authorName}
-                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200">
+                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
                           {c.authorRole}
                         </span>
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-xs text-slate-400">
                         {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-slate-700 mt-1 whitespace-pre-wrap">{c.content}</p>
+                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{c.content}</p>
                   </div>
                 ))}
               </div>
@@ -379,14 +379,14 @@ export default function StudentRequestDetailPage({
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Write a message or update..."
-                className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <button
                 type="submit"
                 disabled={submittingComment || !newComment.trim()}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-2xs"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-4 h-4" />
                 <span>Send</span>
               </button>
             </form>
@@ -397,7 +397,7 @@ export default function StudentRequestDetailPage({
         <div className="space-y-6">
           {/* Metadata Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2.5">
               Ticket Information
             </h2>
 

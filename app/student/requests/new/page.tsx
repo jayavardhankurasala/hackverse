@@ -243,14 +243,14 @@ export default function NewRequestPage() {
           </div>
 
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Request Submitted Successfully
             </h1>
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-mono font-bold text-emerald-800">
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-sm font-mono font-bold text-emerald-800">
               <span>Ticket ID:</span>
               <span className="text-emerald-700">{createdTicket.ticketNumber}</span>
             </div>
-            <p className="text-xs text-slate-500 mt-3 max-w-md mx-auto leading-relaxed">
+            <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto leading-relaxed">
               Your service request has been logged and routed to the central campus facilities queue. Technicians will be assigned based on severity SLA.
             </p>
           </div>
@@ -258,14 +258,14 @@ export default function NewRequestPage() {
           <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href={`/student/requests/${createdTicket.id}`}
-              className="px-5 py-2.5 rounded-xl font-semibold text-xs text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center justify-center gap-2"
+              className="px-6 py-3 rounded-xl font-semibold text-sm text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center justify-center gap-2"
             >
               <Eye className="w-4 h-4" />
               <span>Track Ticket Status</span>
             </Link>
             <Link
               href="/student/dashboard"
-              className="px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition flex items-center justify-center gap-2"
+              className="px-6 py-3 rounded-xl font-semibold text-sm text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition flex items-center justify-center gap-2"
             >
               <span>Back to Dashboard</span>
             </Link>
@@ -281,7 +281,7 @@ export default function NewRequestPage() {
       <div className="flex items-center justify-between">
         <Link
           href="/student/dashboard"
-          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
+          className="inline-flex items-center space-x-2 text-sm font-semibold text-slate-600 hover:text-emerald-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Student Dashboard</span>
@@ -290,10 +290,10 @@ export default function NewRequestPage() {
         <button
           type="button"
           onClick={handleLoadDemoPreset}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm font-semibold hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
           title="Autofill the Wi-Fi Issue Demo Scenario"
         >
-          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+          <Sparkles className="w-4 h-4 text-emerald-600" />
           <span>Load Demo Scenario (Wi-Fi Issue)</span>
         </button>
       </div>
@@ -302,13 +302,13 @@ export default function NewRequestPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Header */}
         <div className="p-6 sm:p-8 border-b border-slate-100 bg-linear-to-r from-emerald-50/40 via-white to-slate-50/40">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 mb-2.5">
             <span>New Service Request</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
             Create Service Request
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-sm text-slate-600 mt-1.5">
             Tell us what needs attention and we'll route it to the right team.
           </p>
         </div>
@@ -322,52 +322,52 @@ export default function NewRequestPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 sm:p-8 space-y-8">
           {/* SECTION 1: REQUEST DETAILS */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
                 1. Request Details
               </h2>
-              <span className="text-[11px] text-slate-400">Step 1 of 3</span>
+              <span className="text-xs font-medium text-slate-400">Step 1 of 3</span>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                 Problem Title <span className="text-rose-500">*</span>
               </label>
               <input
                 {...register('title')}
                 type="text"
                 placeholder="e.g. Wi-Fi not working in Hostel Block A"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
               {errors.title && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.title.message}</p>
+                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.title.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                 Detailed Description <span className="text-rose-500">*</span>
               </label>
               <textarea
                 {...register('description')}
                 rows={4}
                 placeholder="Explain the issue, when it started, and any symptoms or specific equipment affected..."
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
               {errors.description && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.description.message}</p>
+                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.description.message}</p>
               )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Category
                 </label>
                 <select
                   {...register('category')}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
@@ -378,12 +378,12 @@ export default function NewRequestPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Priority SLA
                 </label>
                 <select
                   {...register('priority')}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition font-medium"
                 >
                   {PRIORITIES.map((pri) => (
                     <option key={pri} value={pri}>
@@ -403,10 +403,10 @@ export default function NewRequestPage() {
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">
+                  <h3 className="text-sm font-bold text-slate-900">
                     AI Assistance Engine
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     Auto-evaluates priority SLA, categorization, and optimal technician dispatch
                   </p>
                 </div>
@@ -416,7 +416,7 @@ export default function NewRequestPage() {
                 type="button"
                 onClick={handleAIAnalysis}
                 disabled={isAnalyzingAI}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 transition-all shadow-2xs disabled:opacity-60 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 transition-all shadow-2xs disabled:opacity-60 cursor-pointer"
               >
                 {isAnalyzingAI ? (
                   <>
@@ -433,50 +433,50 @@ export default function NewRequestPage() {
             </div>
 
             {aiError && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
                 <Info className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>{aiError}</span>
               </div>
             )}
 
             {aiResult && (
-              <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-2xs space-y-3 animate-in fade-in-50">
+              <div className="bg-white p-4.5 rounded-xl border border-emerald-200 shadow-2xs space-y-3.5 animate-in fade-in-50">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Check className="w-4 h-4 text-emerald-600" />
                     AI Triage Recommendations
                   </span>
-                  <span className="text-[10px] text-slate-400">Advisory • Fully Editable</span>
+                  <span className="text-xs text-slate-400">Advisory • Fully Editable</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Category</span>
-                    <span className="font-bold text-slate-800">{aiResult.category}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-xs font-semibold text-slate-400 uppercase block">Category</span>
+                    <span className="text-sm font-bold text-slate-800">{aiResult.category}</span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Priority</span>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-xs font-semibold text-slate-400 uppercase block">Priority</span>
                     <PriorityBadge priority={aiResult.priority} />
                   </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Department</span>
-                    <span className="font-bold text-slate-800">{aiResult.department}</span>
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-xs font-semibold text-slate-400 uppercase block">Department</span>
+                    <span className="text-sm font-bold text-slate-800">{aiResult.department}</span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Suggested Staff</span>
-                    <span className="font-bold text-emerald-700">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-xs font-semibold text-slate-400 uppercase block">Suggested Staff</span>
+                    <span className="text-sm font-bold text-emerald-700">
                       {aiResult.department === 'IT Support' ? 'Vikram Rao' : 'Suresh Kumar'}
                     </span>
                   </div>
                 </div>
 
-                <div className="text-xs space-y-1 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
-                  <p className="text-slate-700">
-                    <strong className="text-slate-900">Summary: </strong>
+                <div className="text-xs space-y-1.5 bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
+                  <p className="text-slate-700 leading-relaxed">
+                    <strong className="text-slate-900 font-semibold">Summary: </strong>
                     {aiResult.summary}
                   </p>
-                  <p className="text-slate-600 text-[11px]">
-                    <strong className="text-slate-800">Reasoning: </strong>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong className="text-slate-800 font-semibold">Reasoning: </strong>
                     {aiResult.reasoning}
                   </p>
                 </div>
@@ -486,9 +486,9 @@ export default function NewRequestPage() {
                     type="button"
                     onClick={handleApplyAI}
                     disabled={aiApplied}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 cursor-pointer shadow-2xs"
                   >
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4" />
                     <span>{aiApplied ? 'Recommendations Applied' : 'Apply Recommendations'}</span>
                   </button>
                 </div>
@@ -497,70 +497,70 @@ export default function NewRequestPage() {
           </div>
 
           {/* SECTION 2: LOCATION */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
                 2. Location & Facility Details
               </h2>
-              <span className="text-[11px] text-slate-400">Step 2 of 3</span>
+              <span className="text-xs font-medium text-slate-400">Step 2 of 3</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Building / Block <span className="text-rose-500">*</span>
                 </label>
                 <input
                   {...register('building')}
                   type="text"
                   placeholder="e.g. Hostel Block A"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
                 {errors.building && (
-                  <p className="mt-1 text-xs text-rose-600 font-medium">{errors.building.message}</p>
+                  <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.building.message}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                   Room / Lab Number
                 </label>
                 <input
                   {...register('room')}
                   type="text"
                   placeholder="e.g. A-204"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-sm font-semibold text-slate-800 mb-1.5">
                 Exact Location Notes <span className="text-rose-500">*</span>
               </label>
               <input
                 {...register('location')}
                 type="text"
                 placeholder="e.g. 2nd Floor corridor opposite water cooler"
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
               {errors.location && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.location.message}</p>
+                <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.location.message}</p>
               )}
             </div>
           </div>
 
           {/* SECTION 3: ATTACHMENT */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
                 3. Photo Attachment
               </h2>
-              <span className="text-[11px] text-slate-400">Step 3 of 3</span>
+              <span className="text-xs font-medium text-slate-400">Step 3 of 3</span>
             </div>
 
             {fileError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{fileError}</span>
               </div>
@@ -569,11 +569,11 @@ export default function NewRequestPage() {
             {filePreview ? (
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-slate-700">
                     Attachment Preview:
                   </span>
                   <div className="flex items-center gap-2">
-                    <label className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition">
+                    <label className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition shadow-2xs">
                       <span>Replace</span>
                       <input
                         type="file"
@@ -585,14 +585,14 @@ export default function NewRequestPage() {
                     <button
                       type="button"
                       onClick={removeFile}
-                      className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                      className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 transition cursor-pointer shadow-2xs"
                     >
                       Remove
                     </button>
                   </div>
                 </div>
 
-                <div className="max-w-xs overflow-hidden rounded-lg border border-slate-200 shadow-2xs">
+                <div className="max-w-xs overflow-hidden rounded-xl border border-slate-200 shadow-2xs">
                   <img
                     src={filePreview}
                     alt="Upload preview"
@@ -601,12 +601,12 @@ export default function NewRequestPage() {
                 </div>
               </div>
             ) : (
-              <label className="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-emerald-50/20 transition-all">
+              <label className="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-7 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-emerald-50/20 transition-all">
                 <Upload className="w-8 h-8 text-slate-400 mb-2" />
-                <span className="text-xs font-semibold text-slate-800">
+                <span className="text-sm font-semibold text-slate-800">
                   Upload photo of the issue
                 </span>
-                <span className="text-[11px] text-slate-400 mt-1">
+                <span className="text-xs text-slate-400 mt-1">
                   Supports JPEG, PNG, WebP up to 5MB
                 </span>
                 <input
@@ -623,7 +623,7 @@ export default function NewRequestPage() {
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
             <Link
               href="/student/dashboard"
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition"
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition"
             >
               Cancel
             </Link>
@@ -631,7 +631,7 @@ export default function NewRequestPage() {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>

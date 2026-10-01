@@ -144,32 +144,32 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8 pb-16 font-sans">
       {/* Top Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-6 sm:p-7 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 mb-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>Central Facilities Governance Console</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
             Administration Dashboard
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Campus-wide request oversight, AI dispatch recommendations, and resource analytics
+          <p className="text-sm text-slate-600 font-normal">
+            Campus-wide request oversight, AI dispatch recommendations, and resource analytics.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           <Link
             href="/admin/requests"
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition"
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition"
           >
             Manage Requests ({total})
           </Link>
           <Link
             href="/admin/staff"
-            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition flex items-center gap-2 hover:scale-[1.01]"
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-4 h-4" />
             <span>Staff Directory</span>
           </Link>
         </div>
@@ -220,20 +220,20 @@ export default function AdminDashboardPage() {
 
       {/* AI PRIORITY QUEUE & AUTOMATIC STAFF RECOMMENDATIONS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-linear-to-r from-emerald-50/50 via-white to-slate-50">
+        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-linear-to-r from-emerald-50/50 via-white to-slate-50">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider mb-1">
-              <Sparkles className="w-3 h-3 text-emerald-600" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               <span>Intelligent Dispatch Queue</span>
             </div>
-            <h2 className="text-base font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900">
               AI Priority Queue & Automatic Staff Assignment
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 mt-0.5">
               Ranked automatically by SLA Severity (Critical → High) with specialist matching
             </p>
           </div>
-          <span className="text-xs font-semibold text-emerald-700 bg-white px-3 py-1.5 rounded-lg border border-emerald-200">
+          <span className="text-xs font-semibold text-emerald-800 bg-white px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs self-start sm:self-auto">
             {urgentQueue.length} Priority Tickets
           </span>
         </div>
@@ -249,16 +249,15 @@ export default function AdminDashboardPage() {
                 : 'Anjali Devi')
 
             const isAssigned = req.status !== 'SUBMITTED'
-            const isJustAssigned = justAssignedId === req.id
 
             return (
               <div
                 key={req.id}
-                className="p-5 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                className="p-5 sm:p-6 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-emerald-700 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                    <span className="font-mono text-xs font-bold text-emerald-800 px-2.5 py-0.5 rounded bg-emerald-50 border border-emerald-200">
                       {req.ticketNumber}
                     </span>
                     <PriorityBadge priority={req.priority} />
@@ -273,18 +272,18 @@ export default function AdminDashboardPage() {
                     </span>
                   </div>
 
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-slate-900">
                     {req.title}
                   </h3>
 
-                  <p className="text-xs text-slate-600 line-clamp-1">
+                  <p className="text-xs sm:text-sm text-slate-600 line-clamp-1">
                     {req.description}
                   </p>
 
                   {/* AI Recommendation Reason */}
                   {req.aiRecommendation && (
-                    <div className="text-[11px] text-emerald-800 bg-emerald-50/80 px-2.5 py-1 rounded-md border border-emerald-200 inline-flex items-center gap-1.5 mt-1">
-                      <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <div className="text-xs text-emerald-900 bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-emerald-200 inline-flex items-center gap-1.5 mt-1">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       <span>
                         AI Reason: <em>{req.aiRecommendation.reasoning}</em>
                       </span>
@@ -298,7 +297,7 @@ export default function AdminDashboardPage() {
                     <div className="text-[10px] uppercase font-bold text-slate-400">
                       Suggested Staff:
                     </div>
-                    <div className="text-xs font-bold text-slate-900">
+                    <div className="text-xs sm:text-sm font-bold text-slate-900">
                       {req.assignedStaffName || suggestedStaff}
                     </div>
                   </div>
@@ -313,7 +312,7 @@ export default function AdminDashboardPage() {
                       <span>Assign to {suggestedStaff.split(' ')[0]}</span>
                     </button>
                   ) : (
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 flex items-center gap-1">
+                    <span className="px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Assigned to {req.assignedStaffName}</span>
                     </span>
@@ -321,7 +320,7 @@ export default function AdminDashboardPage() {
 
                   <Link
                     href={`/admin/requests/${req.id}`}
-                    className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
+                    className="p-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition"
                     title="Review Ticket Details"
                   >
                     <Eye className="w-4 h-4" />
@@ -346,14 +345,14 @@ export default function AdminDashboardPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900">All Campus Service Tickets</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="text-lg font-bold text-slate-900">All Campus Service Tickets</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
               Live operational register with multi-attribute filtering
             </p>
           </div>
           <Link
             href="/admin/requests"
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+            className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
           >
             Open Dedicated Table →
           </Link>
@@ -371,7 +370,7 @@ export default function AdminDashboardPage() {
                 placeholder="Search ticket #, title, student, location..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
 
@@ -380,7 +379,7 @@ export default function AdminDashboardPage() {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 aria-label="Filter by Status"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="SUBMITTED">Submitted</option>
@@ -396,7 +395,7 @@ export default function AdminDashboardPage() {
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 aria-label="Filter by Category"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="ALL">All Categories</option>
                 <option value="IT Support">IT Support</option>
@@ -411,49 +410,51 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50/75 border-b border-slate-200 text-slate-500 text-xs font-semibold uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-6">Ticket</th>
-                <th className="py-3 px-6">Issue & Location</th>
-                <th className="py-3 px-6">Category</th>
-                <th className="py-3 px-6">Priority</th>
-                <th className="py-3 px-6">Student</th>
-                <th className="py-3 px-6">Assigned Staff</th>
-                <th className="py-3 px-6">Status</th>
-                <th className="py-3 px-6 text-right">Action</th>
+                <th className="py-3.5 px-6">Ticket</th>
+                <th className="py-3.5 px-6">Issue & Location</th>
+                <th className="py-3.5 px-6">Category</th>
+                <th className="py-3.5 px-6">Priority</th>
+                <th className="py-3.5 px-6">Student</th>
+                <th className="py-3.5 px-6">Assigned Staff</th>
+                <th className="py-3.5 px-6">Status</th>
+                <th className="py-3.5 px-6 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-sm">
               {filteredRequests.map((req) => (
                 <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3.5 px-6 font-mono font-bold text-emerald-700 whitespace-nowrap">
-                    {req.ticketNumber}
+                  <td className="py-4 px-6 font-mono text-xs font-bold text-emerald-800 whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                      {req.ticketNumber}
+                    </span>
                   </td>
-                  <td className="py-3.5 px-6 max-w-xs">
+                  <td className="py-4 px-6 max-w-sm">
                     <div className="font-semibold text-slate-900 line-clamp-1">{req.title}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">{req.location}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{req.location}</div>
                   </td>
-                  <td className="py-3.5 px-6 font-medium text-slate-600 whitespace-nowrap">
+                  <td className="py-4 px-6 font-medium text-slate-700 whitespace-nowrap">
                     {req.category}
                   </td>
-                  <td className="py-3.5 px-6 whitespace-nowrap">
+                  <td className="py-4 px-6 whitespace-nowrap">
                     <PriorityBadge priority={req.priority} />
                   </td>
-                  <td className="py-3.5 px-6 font-medium text-slate-700 whitespace-nowrap">
+                  <td className="py-4 px-6 font-medium text-slate-800 whitespace-nowrap">
                     {req.studentName}
                   </td>
-                  <td className="py-3.5 px-6 whitespace-nowrap">
+                  <td className="py-4 px-6 whitespace-nowrap">
                     {req.assignedStaffName ? (
                       <span className="font-semibold text-slate-800">{req.assignedStaffName}</span>
                     ) : (
                       <span className="text-slate-400 italic">Unassigned</span>
                     )}
                   </td>
-                  <td className="py-3.5 px-6 whitespace-nowrap">
+                  <td className="py-4 px-6 whitespace-nowrap">
                     <StatusBadge status={req.status} />
                   </td>
-                  <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                  <td className="py-4 px-6 text-right whitespace-nowrap">
                     <Link
                       href={`/admin/requests/${req.id}`}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"

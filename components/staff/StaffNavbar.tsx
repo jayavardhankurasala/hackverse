@@ -15,6 +15,7 @@ import {
 import { logout } from '@/actions/auth'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { DemoModeBadge } from '@/components/demo/DemoModeBadge'
+import { DashboardSwitcher } from '@/components/navigation/DashboardSwitcher'
 
 export function StaffNavbar() {
   const pathname = usePathname()
@@ -83,7 +84,7 @@ export function StaffNavbar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                     item.active
                       ? 'bg-blue-50 text-blue-800 font-semibold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -98,6 +99,7 @@ export function StaffNavbar() {
 
           {/* Right Action */}
           <div className="hidden md:flex items-center space-x-3">
+            <DashboardSwitcher />
             <DemoModeBadge />
             <NotificationBell baseRoute="/staff" />
 
