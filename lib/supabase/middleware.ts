@@ -74,8 +74,9 @@ export async function updateSession(request: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    const role = profile?.role?.toLowerCase() || 'student'
+    const role = (profile?.role || user.user_metadata?.role || 'STUDENT').toLowerCase()
     
+    // An authenticated user cannot access unauthorized role routes
     if (!pathname.startsWith(`/${role}`)) {
        const url = request.nextUrl.clone()
        url.pathname = `/${role}/dashboard`

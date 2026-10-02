@@ -28,6 +28,7 @@ import {
   getDemoStaffDomain,
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
+import { createClient } from '@/utils/supabase/client'
 
 export default function StaffRequestsPage() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
@@ -41,14 +42,94 @@ export default function StaffRequestsPage() {
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [viewScope, setViewScope] = useState<'assigned' | 'department'>('assigned')
 
-  const loadData = () => {
+  const loadData = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user || (await supabase.auth.getUser()).data.user
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*, departments(id, name)')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        const departmentName = profile?.departments?.name || profile?.department_id || 'IT Support'
+        const staffName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Staff Member'
+
+        const staffObj: DemoUser = {
+          id: user.id,
+          name: staffName,
+          email: user.email || '',
+          role: 'STAFF',
+          department: departmentName,
+        }
+        setCurrentUser(staffObj)
+
+        const { data: dbRequests } = await supabase
+          .from('service_requests')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (dbRequests && dbRequests.length > 0) {
+          const mapped: DemoRequest[] = dbRequests.map((r: any) => ({
+            id: r.id,
+            ticketNumber: r.ticket_number,
+            title: r.title,
+            description: r.description,
+            category: (r.category || 'General') as any,
+            priority: (r.priority || 'LOW') as any,
+            status: r.status || 'SUBMITTED',
+            location: r.location || '',
+            building: r.building || 'Campus',
+            room: r.room_number || '',
+            studentId: r.created_by,
+            studentName: 'Student Requester',
+            department: r.category || departmentName,
+            assignedStaffId: r.assigned_to,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+
+          // STRICT FILTER: Only tickets in their assigned department
+          const deptOnly = mapped.filter(
+            (r) =>
+              r.category?.toLowerCase().includes(departmentName.toLowerCase()) ||
+              departmentName.toLowerCase().includes(r.category?.toLowerCase() || '')
+          )
+          const myOnly = mapped.filter((r) => r.assignedStaffId === user.id)
+
+          setRequests(viewScope === 'assigned' ? (myOnly.length > 0 ? myOnly : deptOnly) : deptOnly)
+          setLoading(false)
+          return
+        }
+
+        const demoDept = getDepartmentRequests(departmentName)
+        const demoAssigned = getStaffAssignedRequests(user.id).filter(
+          (r) =>
+            r.category?.toLowerCase().includes(departmentName.toLowerCase()) ||
+            departmentName.toLowerCase().includes(r.category?.toLowerCase() || '')
+        )
+        setRequests(viewScope === 'assigned' ? (demoAssigned.length > 0 ? demoAssigned : demoDept) : demoDept)
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      console.warn('Live staff requests notice:', err)
+    }
+
     const user = getCurrentDemoUser()
     setCurrentUser(user)
-    const domain = getDemoStaffDomain(user.id)
+    const domain = (user as any).department || getDemoStaffDomain(user.id) || 'IT Support'
 
     const list =
       viewScope === 'assigned'
-        ? getStaffAssignedRequests(user.id)
+        ? getStaffAssignedRequests(user.id).filter(
+            (r) =>
+              r.category?.toLowerCase().includes(domain.toLowerCase()) ||
+              domain.toLowerCase().includes(r.category?.toLowerCase() || '')
+          )
         : getDepartmentRequests(domain)
 
     setRequests(list)

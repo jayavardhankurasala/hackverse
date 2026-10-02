@@ -15,9 +15,7 @@ import {
   User,
 } from 'lucide-react'
 import { logout } from '@/actions/auth'
-import { NotificationBell } from '@/components/notifications/NotificationBell'
-import { DemoModeBadge } from '@/components/demo/DemoModeBadge'
-import { DashboardSwitcher } from '@/components/navigation/DashboardSwitcher'
+import { UserNavChip } from '@/components/shared/UserNavChip'
 
 export function AdminNavbar() {
   const pathname = usePathname()
@@ -71,20 +69,22 @@ export function AdminNavbar() {
           {/* Brand */}
           <div className="flex items-center space-x-4">
             <Link href="/admin/dashboard" className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-xs">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              </div>
+              <img
+                src="/svec-logo.png"
+                alt="Sri Vasavi Engineering College Logo"
+                className="w-10 h-10 object-contain shrink-0 drop-shadow-xs"
+              />
               <div>
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-bold text-slate-900 tracking-tight text-base sm:text-lg">
-                    Campus<span className="text-emerald-600">Admin</span>
+                  <span className="font-extrabold text-slate-900 tracking-tight text-base sm:text-lg">
+                    SVEC<span className="text-purple-600">helpdesk</span>
                   </span>
-                  <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-purple-50 text-purple-700 rounded-md border border-purple-200">
-                    Governance
+                  <span className="px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-purple-50 text-purple-700 rounded-md border border-purple-200">
+                    Administrator
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
-                  Central Facilities Control
+                  Central Operations & Facilities Command
                 </p>
               </div>
             </Link>
@@ -111,27 +111,14 @@ export function AdminNavbar() {
             })}
           </nav>
 
-          {/* Right Action */}
+          {/* Right Action: Profile Chip, Enlarged Bell & Logout */}
           <div className="hidden md:flex items-center space-x-3">
-            <DashboardSwitcher />
-            <DemoModeBadge />
-            <NotificationBell baseRoute="/admin" />
-
-            <div className="h-4 w-px bg-slate-200" />
-
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Exit</span>
-            </button>
+            <UserNavChip expectedRole="admin" />
           </div>
 
           {/* Mobile menu button */}
           <div className="flex items-center space-x-2 md:hidden">
-            <DemoModeBadge />
+            <UserNavChip expectedRole="admin" />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 hover:bg-slate-100"

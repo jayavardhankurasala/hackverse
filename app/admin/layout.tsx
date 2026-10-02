@@ -13,6 +13,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  let targetRedirect: string | null = null
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -22,14 +23,19 @@ export default async function AdminLayout({
         .from('profiles')
         .select('role')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      if (profile?.role && profile.role !== 'ADMIN') {
-        redirect(`/${profile.role.toLowerCase()}/dashboard`)
+      const userRole = (profile?.role || user.user_metadata?.role || 'STUDENT').toUpperCase()
+      if (userRole !== 'ADMIN') {
+        targetRedirect = userRole === 'STAFF' ? '/staff/dashboard' : '/student/dashboard'
       }
     }
   } catch {
     // Graceful demo mode fallback
+  }
+
+  if (targetRedirect) {
+    redirect(targetRedirect)
   }
 
   return (

@@ -18,6 +18,8 @@ import { LoadingState } from '@/components/ui/LoadingState'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DemoRequest } from '@/lib/demo/types'
 
+import { createClient } from '@/utils/supabase/client'
+
 export default function RequestList() {
   const [requests, setRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,7 +27,52 @@ export default function RequestList() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
 
-  const loadData = () => {
+  const loadData = async () => {
+    // 1. Try fetching from live Supabase session
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user || (await supabase.auth.getUser()).data.user
+
+      if (user) {
+        const { data: dbRequests } = await supabase
+          .from('service_requests')
+          .select('*')
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+
+        if (dbRequests && dbRequests.length > 0) {
+          const mapped: DemoRequest[] = dbRequests.map((r: any) => ({
+            id: r.id,
+            ticketNumber: r.ticket_number,
+            title: r.title,
+            description: r.description,
+            category: r.category as any,
+            priority: r.priority as any,
+            status: r.status || 'SUBMITTED',
+            location: r.location || '',
+            building: r.building || 'Campus',
+            room: r.room_number || '',
+            studentId: user.id,
+            studentName: 'Student',
+            department: r.category || 'General',
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+          setRequests(mapped)
+          setLoading(false)
+          return
+        } else {
+          setRequests([])
+          setLoading(false)
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase requests fetch notice:', err)
+    }
+
+    // 2. Demo fallback
     const user = getCurrentDemoUser()
     const list = getStudentRequests(user.id)
     setRequests(list)

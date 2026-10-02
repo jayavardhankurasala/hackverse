@@ -38,6 +38,7 @@ import {
   resolveDemoRequest,
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser, ServiceCategory } from '@/lib/demo/types'
+import { createClient } from '@/utils/supabase/client'
 
 const DOMAINS: string[] = [
   'IT Support',
@@ -68,19 +69,104 @@ export default function StaffDashboardPage() {
   const [resolutionNote, setResolutionNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const loadData = () => {
+  const loadData = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user || (await supabase.auth.getUser()).data.user
+
+      if (user) {
+        // Fetch staff profile with department association
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*, departments(id, name)')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        const departmentName = profile?.departments?.name || profile?.department_id || 'IT Support'
+        const staffName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Staff Member'
+
+        const staffObj: DemoUser = {
+          id: user.id,
+          name: staffName,
+          email: user.email || '',
+          role: 'STAFF',
+          department: departmentName,
+        }
+        setCurrentUser(staffObj)
+        setActiveDomain(departmentName)
+
+        // Query service requests
+        const { data: dbRequests } = await supabase
+          .from('service_requests')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (dbRequests && dbRequests.length > 0) {
+          const mapped: DemoRequest[] = dbRequests.map((r: any) => ({
+            id: r.id,
+            ticketNumber: r.ticket_number,
+            title: r.title,
+            description: r.description,
+            category: (r.category || 'General') as any,
+            priority: (r.priority || 'LOW') as any,
+            status: r.status || 'SUBMITTED',
+            location: r.location || '',
+            building: r.building || 'Campus',
+            room: r.room_number || '',
+            studentId: r.created_by,
+            studentName: 'Student Requester',
+            department: r.category || departmentName,
+            assignedStaffId: r.assigned_to,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+
+          // STRICT FILTER: Service requests corresponding strictly to their department
+          const deptOnly = mapped.filter(
+            (r) =>
+              r.category?.toLowerCase().includes(departmentName.toLowerCase()) ||
+              departmentName.toLowerCase().includes(r.category?.toLowerCase() || '')
+          )
+          const myOnly = mapped.filter((r) => r.assignedStaffId === user.id)
+
+          setDeptRequests(deptOnly)
+          setAssignedRequests(myOnly.length > 0 ? myOnly : deptOnly.slice(0, 3))
+          setLoading(false)
+          return
+        }
+
+        // Fallback to mock data strictly filtered by this registered department
+        const demoDept = getDepartmentRequests(departmentName)
+        const demoAssigned = getStaffAssignedRequests(user.id).filter(
+          (r) =>
+            r.category?.toLowerCase().includes(departmentName.toLowerCase()) ||
+            departmentName.toLowerCase().includes(r.category?.toLowerCase() || '')
+        )
+        setDeptRequests(demoDept)
+        setAssignedRequests(demoAssigned.length > 0 ? demoAssigned : demoDept.slice(0, 2))
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      console.warn('Live staff load notice:', err)
+    }
+
+    // Demo user fallback with strict department filtering
     const user = getCurrentDemoUser()
     setCurrentUser(user)
-
-    const domain = getDemoStaffDomain(user.id)
+    const domain = (user as any).department || getDemoStaffDomain(user.id) || 'IT Support'
     setActiveDomain(domain)
-
-    const myReqs = getStaffAssignedRequests(user.id)
-    setAssignedRequests(myReqs)
 
     const dReqs = getDepartmentRequests(domain)
     setDeptRequests(dReqs)
 
+    const myReqs = getStaffAssignedRequests(user.id).filter(
+      (r) =>
+        r.category?.toLowerCase().includes(domain.toLowerCase()) ||
+        domain.toLowerCase().includes(r.category?.toLowerCase() || '')
+    )
+    setAssignedRequests(myReqs.length > 0 ? myReqs : dReqs.slice(0, 2))
     setLoading(false)
   }
 
@@ -183,25 +269,16 @@ export default function StaffDashboardPage() {
           </p>
         </div>
 
-        {/* WORK DOMAIN SELECTOR */}
-        <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-          <Sliders className="w-4 h-4 text-emerald-600 shrink-0" />
+        {/* REGISTERED WORK DOMAIN BADGE */}
+        <div className="flex items-center gap-3 bg-blue-50/80 px-4 py-3 rounded-2xl border border-blue-200 shadow-2xs">
+          <Building2 className="w-5 h-5 text-blue-700 shrink-0" />
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Choose Your Work Domain:
-            </label>
-            <select
-              value={activeDomain}
-              onChange={(e) => handleDomainChange(e.target.value)}
-              aria-label="Choose Your Work Domain"
-              className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
-            >
-              {DOMAINS.map((dom) => (
-                <option key={dom} value={dom}>
-                  {dom}
-                </option>
-              ))}
-            </select>
+            <span className="block text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+              Assigned Department Queue
+            </span>
+            <span className="text-sm font-extrabold text-blue-950">
+              {activeDomain}
+            </span>
           </div>
         </div>
       </div>

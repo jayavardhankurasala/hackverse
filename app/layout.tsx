@@ -16,9 +16,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Campus Service Request Platform | Report. Track. Resolve.",
+  title: "SVEChelpdesk | Sri Vasavi Engineering College Facilities Platform",
   description:
-    "Intelligent campus facilities and service request management connecting students, staff, and administrators.",
+    "Intelligent campus & hostel facilities service request management connecting students, technicians, and administrators at Sri Vasavi Engineering College.",
+  icons: {
+    icon: "/svec-logo.png",
+    apple: "/svec-logo.png",
+  },
 };
 
 export default function RootLayout({

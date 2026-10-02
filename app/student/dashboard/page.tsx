@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
+import { createClient } from '@/utils/supabase/client'
 
 export default function StudentDashboard() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
@@ -29,11 +30,89 @@ export default function StudentDashboard() {
   const [recentRequests, setRecentRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
 
-  const loadData = () => {
+  const loadData = async () => {
+    // 1. Check for real authenticated Supabase session
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user || (await supabase.auth.getUser()).data.user
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        const rollNumber = profile?.roll_number || profile?.student_id || user.user_metadata?.roll_number || user.user_metadata?.student_id || undefined
+        const branch = profile?.branch || user.user_metadata?.branch || 'CSE'
+        const year = profile?.year || user.user_metadata?.year || '3rd Year'
+
+        const studentProfile: DemoUser & { branch?: string; year?: string; rollNumber?: string } = {
+          id: user.id,
+          name: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Student',
+          email: user.email || '',
+          role: 'STUDENT',
+          studentId: rollNumber,
+          rollNumber: rollNumber,
+          branch,
+          year,
+          hostel: 'Hostel',
+          room: '',
+        }
+        setCurrentUser(studentProfile)
+
+        // Fetch user's actual tickets from Supabase database
+        const { data: dbRequests } = await supabase
+          .from('service_requests')
+          .select('*')
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+
+        if (dbRequests && dbRequests.length > 0) {
+          const mapped: DemoRequest[] = dbRequests.map((r: any) => ({
+            id: r.id,
+            ticketNumber: r.ticket_number,
+            title: r.title,
+            description: r.description,
+            category: (r.category || 'IT Support') as any,
+            priority: (r.priority || 'LOW') as any,
+            status: r.status || 'SUBMITTED',
+            location: r.location || '',
+            building: r.building || 'Campus',
+            room: r.room_number || '',
+            studentId: user.id,
+            studentName: studentProfile.name,
+            department: r.category || 'General',
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+
+          setStats({
+            total: mapped.length,
+            pending: mapped.filter((r) => r.status === 'SUBMITTED' || r.status === 'ASSIGNED').length,
+            inProgress: mapped.filter((r) => r.status === 'IN_PROGRESS').length,
+            resolved: mapped.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
+          })
+          setRecentRequests(mapped.slice(0, 6))
+          setLoading(false)
+          return
+        } else {
+          // User is authenticated but hasn't created tickets yet
+          setStats({ total: 0, pending: 0, inProgress: 0, resolved: 0 })
+          setRecentRequests([])
+          setLoading(false)
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('Live Supabase data load notice:', err)
+    }
+
+    // 2. Demo fallback for standalone presentation
     const demoUser = getCurrentDemoUser()
     setCurrentUser(demoUser)
 
-    // Load requests for student from demo service
     const reqs = getStudentRequests(demoUser.id)
     setStats({
       total: reqs.length,
@@ -69,12 +148,24 @@ export default function StudentDashboard() {
       {/* Top Welcome Header & Quick Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 mb-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Campus Service Desk</span>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Campus Service Desk</span>
+            </div>
+            {(currentUser?.studentId || (currentUser as any)?.rollNumber) && (
+              <span className="text-xs font-mono font-semibold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Roll No: {currentUser?.studentId || (currentUser as any)?.rollNumber}
+              </span>
+            )}
+            {(currentUser as any)?.branch && (
+              <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                {(currentUser as any)?.branch} &bull; {(currentUser as any)?.year || 'Student'}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            Good morning, {firstName}
+            Good morning, {currentUser?.name || firstName}
           </h1>
           <p className="text-sm text-slate-600 font-normal">
             Track your open service tickets, request updates, and log new campus issues.

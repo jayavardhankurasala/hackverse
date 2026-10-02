@@ -12,77 +12,147 @@ import {
   Clock,
   Calendar,
   Wrench,
-  Sparkles,
   ArrowLeft,
   CreditCard,
-  Sliders,
+  Phone,
+  Camera,
+  Loader2,
 } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
-import {
-  getCurrentDemoUser,
-  getStaffAssignedRequests,
-  getDemoStaffDomain,
-  setDemoStaffDomain,
-} from '@/lib/demo/demo-service'
-import { DemoUser } from '@/lib/demo/types'
+import { createClient } from '@/utils/supabase/client'
+import { DEMO_USERS } from '@/lib/demo/mock-data'
+import { getCurrentDemoUser, getStaffAssignedRequests } from '@/lib/demo/demo-service'
 
-const DOMAINS: string[] = [
-  'IT Support',
-  'Electrical',
-  'Plumbing',
-  'Hostel',
-  'Cleaning',
-  'Maintenance',
-  'Administration',
-]
+interface StaffProfileData {
+  id: string
+  name: string
+  email: string
+  employeeId: string
+  phone: string
+  department: string
+  avatarUrl: string | null
+  stats: {
+    total: number
+    pending: number
+    resolved: number
+  }
+}
 
 export default function StaffProfilePage() {
-  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
-  const [domain, setDomain] = useState('IT Support')
-  const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 })
-
-  const loadData = () => {
-    const user = getCurrentDemoUser()
-    setCurrentUser(user)
-
-    const activeDom = getDemoStaffDomain(user.id)
-    setDomain(activeDom)
-
-    const myReqs = getStaffAssignedRequests(user.id)
-    setStats({
-      total: myReqs.length,
-      pending: myReqs.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length,
-      resolved: myReqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
-    })
-  }
+  const [staff, setStaff] = useState<StaffProfileData | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadData()
+    let isMounted = true
 
-    const handleUpdate = () => loadData()
-    window.addEventListener('demo-user-changed', handleUpdate)
-    window.addEventListener('demo-data-changed', handleUpdate)
+    async function loadStaffProfile() {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user || (await supabase.auth.getUser()).data.user
+
+        if (user && isMounted) {
+          // Fetch authenticated staff profile from Supabase
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*, departments(id, name)')
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+          const fullName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Campus Specialist'
+          const email = profile?.email || user.email || ''
+          const employeeId = profile?.student_id || 'EMP-SVEC-' + user.id.slice(0, 5).toUpperCase()
+          const phone = profile?.phone || user.user_metadata?.phone || 'Not Specified'
+          const department = profile?.departments?.name || profile?.department_id || 'General Campus Facilities'
+          const avatarUrl = profile?.avatar_url || null
+
+          // Fetch real staff statistics from service_requests table
+          const { data: staffTickets } = await supabase
+            .from('service_requests')
+            .select('status')
+            .eq('assigned_to', user.id)
+
+          const total = staffTickets?.length || 0
+          const pending = staffTickets?.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length || 0
+          const resolved = staffTickets?.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length || 0
+
+          setStaff({
+            id: user.id,
+            name: fullName,
+            email,
+            employeeId,
+            phone,
+            department,
+            avatarUrl,
+            stats: { total, pending, resolved },
+          })
+          setLoading(false)
+          return
+        }
+
+        // Demo user fallback: specifically load Staff persona (never student persona)
+        const demoUser = getCurrentDemoUser()
+        const activeStaff = (demoUser?.role === 'STAFF' ? demoUser : DEMO_USERS['staff-1']) || DEMO_USERS['staff-1']
+
+        const demoReqs = getStaffAssignedRequests(activeStaff.id)
+        if (isMounted) {
+          setStaff({
+            id: activeStaff.id,
+            name: activeStaff.name,
+            email: activeStaff.email,
+            employeeId: activeStaff.employeeId || 'EMP202601',
+            phone: '+91 98765 43210',
+            department: (activeStaff as any).department || 'IT Support',
+            avatarUrl: activeStaff.avatarUrl || null,
+            stats: {
+              total: demoReqs.length,
+              pending: demoReqs.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length,
+              resolved: demoReqs.filter((r) => r.status === 'RESOLVED' || r.status === 'CLOSED').length,
+            },
+          })
+          setLoading(false)
+        }
+      } catch (err) {
+        console.warn('Staff profile fetch notice:', err)
+        if (isMounted) {
+          const fallback = DEMO_USERS['staff-1']
+          setStaff({
+            id: fallback.id,
+            name: fallback.name,
+            email: fallback.email,
+            employeeId: 'EMP202601',
+            phone: '+91 98765 43210',
+            department: fallback.department || 'IT Support',
+            avatarUrl: null,
+            stats: { total: 4, pending: 2, resolved: 2 },
+          })
+          setLoading(false)
+        }
+      }
+    }
+
+    loadStaffProfile()
 
     return () => {
-      window.removeEventListener('demo-user-changed', handleUpdate)
-      window.removeEventListener('demo-data-changed', handleUpdate)
+      isMounted = false
     }
   }, [])
 
-  const handleDomainChange = (newDomain: string) => {
-    if (!currentUser) return
-    setDomain(newDomain)
-    setDemoStaffDomain(currentUser.id, newDomain)
+  if (loading || !staff) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 text-center text-slate-400 text-sm">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+        <span>Loading technician profile...</span>
+      </div>
+    )
   }
-
-  if (!currentUser) return null
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12 font-sans">
       <div>
         <Link
           href="/staff/dashboard"
-          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
+          className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-500 hover:text-blue-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Operations Queue</span>
@@ -94,13 +164,17 @@ export default function StaffProfilePage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-2xs">
-              {currentUser.name.charAt(0).toUpperCase()}
+            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-2xs overflow-hidden">
+              {staff.avatarUrl ? (
+                <img src={staff.avatarUrl} alt={staff.name} className="w-full h-full object-cover" />
+              ) : (
+                <span>{staff.name.charAt(0).toUpperCase()}</span>
+              )}
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  {currentUser.name}
+                  {staff.name}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 uppercase tracking-wider">
                   Technician
@@ -108,8 +182,16 @@ export default function StaffProfilePage() {
               </div>
               <p className="text-xs text-slate-500 mt-1 flex items-center space-x-1.5">
                 <Wrench className="w-3.5 h-3.5 text-blue-600" />
-                <span>Certified Campus Facilities Specialist</span>
+                <span>Certified SVEC Facilities Specialist</span>
               </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-blue-50 px-3.5 py-2 rounded-xl border border-blue-200">
+            <Building2 className="w-4 h-4 text-blue-700" />
+            <div className="text-left">
+              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Domain</span>
+              <span className="text-xs font-extrabold text-blue-900 block">{staff.department}</span>
             </div>
           </div>
         </div>
@@ -118,43 +200,43 @@ export default function StaffProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Staff Credentials</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+              <span>Official Staff Identification</span>
             </h2>
 
             <div className="space-y-3 text-xs">
               <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CreditCard className="w-4 h-4 text-blue-600 shrink-0" />
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Employee ID
+                    Employee / Staff ID
                   </span>
-                  <span className="font-semibold text-slate-800 block">
-                    {currentUser.employeeId || 'EMP202601'}
+                  <span className="font-semibold text-slate-800 font-mono block">
+                    {staff.employeeId}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+                <Mail className="w-4 h-4 text-blue-600 shrink-0" />
                 <div className="truncate">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Official Email
+                    Official College Email
                   </span>
                   <span className="font-semibold text-slate-800 truncate block">
-                    {currentUser.email}
+                    {staff.email}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <Wrench className="w-4 h-4 text-emerald-600 shrink-0" />
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Specialization
+                    Contact Phone
                   </span>
                   <span className="font-semibold text-slate-800 block">
-                    {currentUser.specialization || 'Network, Wi-Fi, Computers'}
+                    {staff.phone}
                   </span>
                 </div>
               </div>
@@ -163,36 +245,30 @@ export default function StaffProfilePage() {
 
           <div className="space-y-4">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-              <Sliders className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Work Domain Setting</span>
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Operational Department & Role</span>
             </h2>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Active Department / Work Pool:
-                </label>
-                <select
-                  value={domain}
-                  onChange={(e) => handleDomainChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                >
-                  {DOMAINS.map((dom) => (
-                    <option key={dom} value={dom}>
-                      {dom}
-                    </option>
-                  ))}
-                </select>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Designated Service Department
+                </span>
+                <div className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-blue-600" />
+                  <span>{staff.department}</span>
+                </div>
               </div>
 
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Tickets categorized under <strong className="text-slate-800">{domain}</strong> will appear in your Department Repair Queue.
+                Your account is strictly configured to receive, track, and resolve facility grievances reported under the{' '}
+                <strong className="text-slate-800">{staff.department}</strong> queue across SVEC campus and hostels.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Assigned Performance Metrics */}
         <div className="pt-4 border-t border-slate-100">
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
             Assigned Work Order Performance
@@ -200,21 +276,21 @@ export default function StaffProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
               title="Total Assigned"
-              value={stats.total}
-              subtitle="All assigned tickets"
+              value={staff.stats.total}
+              subtitle="All assigned tasks"
               icon={ClipboardList}
               color="blue"
             />
             <StatCard
               title="In Progress"
-              value={stats.pending}
-              subtitle="Pending completion"
+              value={staff.stats.pending}
+              subtitle="Pending resolution"
               icon={Clock}
               color="amber"
             />
             <StatCard
               title="Completed / Resolved"
-              value={stats.resolved}
+              value={staff.stats.resolved}
               subtitle="Successfully fixed"
               icon={CheckCircle2}
               color="emerald"

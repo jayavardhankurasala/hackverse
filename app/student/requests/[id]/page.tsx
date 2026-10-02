@@ -55,13 +55,54 @@ export default function StudentRequestDetailPage({
   const [feedback, setFeedback] = useState('')
   const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
-  const loadTicket = () => {
-    const r = getDemoRequestById(requestId)
+  const loadTicket = async () => {
+    let r = getDemoRequestById(requestId)
     if (r) {
       setRequest(r)
       setComments(getDemoComments(r.id))
       setLogs(getDemoLogs(r.id))
+      setLoading(false)
+      return
     }
+
+    // Try fetching live from Supabase
+    try {
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data: dbReq } = await supabase
+        .from('service_requests')
+        .select('*')
+        .or(`id.eq.${requestId},ticket_number.eq.${requestId}`)
+        .maybeSingle()
+
+      if (dbReq) {
+        const mapped: DemoRequest = {
+          id: dbReq.id,
+          ticketNumber: dbReq.ticket_number,
+          title: dbReq.title,
+          description: dbReq.description,
+          category: dbReq.category as any,
+          priority: dbReq.priority as any,
+          status: dbReq.status || 'SUBMITTED',
+          location: dbReq.location || '',
+          building: dbReq.building || 'Campus',
+          room: dbReq.room_number || '',
+          studentId: dbReq.created_by,
+          studentName: 'Student',
+          department: dbReq.category || 'General',
+          createdAt: dbReq.created_at,
+          updatedAt: dbReq.updated_at,
+          resolutionNote: dbReq.resolution_note || undefined,
+          resolutionImageUrl: dbReq.resolution_attachment_url || undefined,
+        }
+        setRequest(mapped)
+        setComments(getDemoComments(mapped.id))
+        setLogs(getDemoLogs(mapped.id))
+      }
+    } catch (err) {
+      console.warn('Supabase ticket lookup notice:', err)
+    }
+
     setLoading(false)
   }
 

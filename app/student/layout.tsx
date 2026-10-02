@@ -13,6 +13,7 @@ export default async function StudentLayout({
 }: {
   children: React.ReactNode
 }) {
+  let targetRedirect: string | null = null
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -24,12 +25,16 @@ export default async function StudentLayout({
         .eq('user_id', user.id)
         .single()
 
-      if (profile?.role && profile.role !== 'STUDENT') {
-        redirect(`/${profile.role.toLowerCase()}/dashboard`)
+      if (profile?.role && profile.role !== 'STUDENT' && profile.role !== 'ADMIN') {
+        targetRedirect = `/${profile.role.toLowerCase()}/dashboard`
       }
     }
   } catch {
     // Graceful demo mode fallback
+  }
+
+  if (targetRedirect) {
+    redirect(targetRedirect)
   }
 
   return (

@@ -56,13 +56,20 @@ export async function createServiceRequest(formData: FormData) {
     }
   }
 
-  // Generate unique ticket number (in a real app, you'd use a robust sequencer or sequence in DB)
-  // We'll generate CR-XXXX
-  const { count } = await supabase
-    .from('service_requests')
-    .select('*', { count: 'exact', head: true })
-
-  const ticketNumber = `CR-${1000 + (count || 0) + 1}`
+  // Generate unique ticket number with collision resistance
+  let ticketNumber = `CR-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { count } = await admin
+      .from('service_requests')
+      .select('*', { count: 'exact', head: true })
+    if (typeof count === 'number') {
+      ticketNumber = `CR-${1000 + count + 1}`
+    }
+  } catch {
+    // Keep timestamp-based unique ticketNumber
+  }
 
   const aiCategory = (formData.get('aiCategory') as string) || null
   const aiPriority = (formData.get('aiPriority') as any) || null
