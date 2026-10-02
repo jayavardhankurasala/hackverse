@@ -37,31 +37,53 @@ export function UserNavChip({ expectedRole }: { expectedRole?: 'student' | 'staf
         const user = session?.user || (await supabase.auth.getUser()).data.user
 
         if (user && isMounted) {
+          // Immediately set optimistic profile from session metadata to eliminate render lag
+          const metaRole = (user.user_metadata?.role || 'STUDENT').toUpperCase() as 'STUDENT' | 'STAFF' | 'ADMIN'
+          const metaName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Campus User'
+          const metaId = user.user_metadata?.roll_number || user.user_metadata?.student_id || null
+
+          setProfile({
+            id: user.id,
+            userId: user.id,
+            fullName: metaName,
+            email: user.email || '',
+            role: metaRole,
+            studentId: metaId,
+            rollNumber: metaId,
+            branch: user.user_metadata?.branch || null,
+            year: user.user_metadata?.year || null,
+            departmentName: null,
+            avatarUrl: user.user_metadata?.avatar_url || null,
+          })
+          setLoading(false)
+
+          // Fetch full DB profile in the background
           const { data: dbProfile } = await supabase
             .from('profiles')
             .select('*, departments(id, name)')
             .eq('user_id', user.id)
             .maybeSingle()
 
-          const role = (dbProfile?.role || user.user_metadata?.role || 'STUDENT').toUpperCase() as 'STUDENT' | 'STAFF' | 'ADMIN'
-          const fullName = dbProfile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Campus User'
-          const studentId = dbProfile?.roll_number || dbProfile?.student_id || user.user_metadata?.roll_number || user.user_metadata?.student_id || null
-          const departmentName = dbProfile?.departments?.name || (typeof dbProfile?.department_id === 'string' ? dbProfile.department_id : null)
+          if (dbProfile && isMounted) {
+            const role = (dbProfile.role || user.user_metadata?.role || 'STUDENT').toUpperCase() as 'STUDENT' | 'STAFF' | 'ADMIN'
+            const fullName = dbProfile.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Campus User'
+            const studentId = dbProfile.roll_number || dbProfile.student_id || user.user_metadata?.roll_number || user.user_metadata?.student_id || null
+            const departmentName = dbProfile.departments?.name || (typeof dbProfile.department_id === 'string' ? dbProfile.department_id : null)
 
-          setProfile({
-            id: dbProfile?.id || user.id,
-            userId: user.id,
-            fullName,
-            email: user.email || '',
-            role,
-            studentId,
-            rollNumber: studentId,
-            branch: dbProfile?.branch || user.user_metadata?.branch || null,
-            year: dbProfile?.year || user.user_metadata?.year || null,
-            departmentName,
-            avatarUrl: dbProfile?.avatar_url || user.user_metadata?.avatar_url || null,
-          })
-          setLoading(false)
+            setProfile({
+              id: dbProfile.id || user.id,
+              userId: user.id,
+              fullName,
+              email: user.email || '',
+              role,
+              studentId,
+              rollNumber: studentId,
+              branch: dbProfile.branch || user.user_metadata?.branch || null,
+              year: dbProfile.year || user.user_metadata?.year || null,
+              departmentName,
+              avatarUrl: dbProfile.avatar_url || user.user_metadata?.avatar_url || null,
+            })
+          }
           return
         }
 

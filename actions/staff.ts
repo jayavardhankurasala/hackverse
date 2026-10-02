@@ -25,23 +25,26 @@ export async function startWorkOnRequest(requestId: string) {
     return { error: 'Authentication required' }
   }
 
-  // 2. Confirm user has STAFF role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single()
+  // 2. Fetch profile & request concurrently
+  const [
+    { data: profile },
+    { data: request, error: reqError },
+  ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single(),
+    supabase
+      .from('service_requests')
+      .select('id, ticket_number, status, created_by, assigned_to')
+      .eq('id', requestId)
+      .single(),
+  ])
 
   if (profile?.role !== 'STAFF' && profile?.role !== 'ADMIN') {
     return { error: 'Access denied: Only staff members can perform this action' }
   }
-
-  // 3. Fetch request & confirm assignment
-  const { data: request, error: reqError } = await supabase
-    .from('service_requests')
-    .select('id, ticket_number, status, created_by, assigned_to')
-    .eq('id', requestId)
-    .single()
 
   if (reqError || !request) {
     return { error: 'Request not found' }
@@ -74,27 +77,27 @@ export async function startWorkOnRequest(requestId: string) {
     return { error: updateError.message }
   }
 
-  // 6. Insert activity log
-  await supabase.from('activity_logs').insert([
-    {
-      request_id: requestId,
-      user_id: user.id,
-      action: 'Status changed from ASSIGNED to IN_PROGRESS',
-      old_value: { status: 'ASSIGNED' },
-      new_value: { status: 'IN_PROGRESS' },
-    },
-  ])
-
-  // 7. Create notification for the requester
-  await supabase.from('notifications').insert([
-    {
-      user_id: request.created_by,
-      request_id: requestId,
-      title: 'Request In Progress',
-      message: `Your request ${request.ticket_number} is now being worked on.`,
-      type: 'STATUS_UPDATE',
-      is_read: false,
-    },
+  // 6. Insert activity log and notification concurrently
+  await Promise.all([
+    supabase.from('activity_logs').insert([
+      {
+        request_id: requestId,
+        user_id: user.id,
+        action: 'Status changed from ASSIGNED to IN_PROGRESS',
+        old_value: { status: 'ASSIGNED' },
+        new_value: { status: 'IN_PROGRESS' },
+      },
+    ]),
+    supabase.from('notifications').insert([
+      {
+        user_id: request.created_by,
+        request_id: requestId,
+        title: 'Request In Progress',
+        message: `Your request ${request.ticket_number} is now being worked on.`,
+        type: 'STATUS_UPDATE',
+        is_read: false,
+      },
+    ]),
   ])
 
   revalidatePath('/staff/dashboard')
@@ -118,17 +121,6 @@ export async function resolveRequest(formData: FormData) {
     return { error: 'Authentication required' }
   }
 
-  // 2. Confirm user has STAFF role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single()
-
-  if (profile?.role !== 'STAFF' && profile?.role !== 'ADMIN') {
-    return { error: 'Access denied: Only staff members can resolve requests' }
-  }
-
   // 3. Validate form data with Zod
   const rawRequestId = formData.get('requestId') as string
   const rawResolutionNote = formData.get('resolutionNote') as string
@@ -144,12 +136,26 @@ export async function resolveRequest(formData: FormData) {
 
   const { requestId, resolutionNote } = parsed.data
 
-  // 4. Fetch request & confirm assignment
-  const { data: request, error: reqError } = await supabase
-    .from('service_requests')
-    .select('id, ticket_number, status, created_by, assigned_to')
-    .eq('id', requestId)
-    .single()
+  // 4. Fetch profile & request concurrently
+  const [
+    { data: profile },
+    { data: request, error: reqError },
+  ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single(),
+    supabase
+      .from('service_requests')
+      .select('id, ticket_number, status, created_by, assigned_to')
+      .eq('id', requestId)
+      .single(),
+  ])
+
+  if (profile?.role !== 'STAFF' && profile?.role !== 'ADMIN') {
+    return { error: 'Access denied: Only staff members can resolve requests' }
+  }
 
   if (reqError || !request) {
     return { error: 'Request not found' }
@@ -237,27 +243,27 @@ export async function resolveRequest(formData: FormData) {
     return { error: updateError.message }
   }
 
-  // 8. Add activity log
-  await supabase.from('activity_logs').insert([
-    {
-      request_id: requestId,
-      user_id: user.id,
-      action: 'Request resolved',
-      old_value: { status: request.status },
-      new_value: { status: 'RESOLVED', resolution_note: resolutionNote },
-    },
-  ])
-
-  // 9. Create notification for the requester
-  await supabase.from('notifications').insert([
-    {
-      user_id: request.created_by,
-      request_id: requestId,
-      title: 'Request Resolved',
-      message: `Your request ${request.ticket_number} has been resolved.`,
-      type: 'STATUS_RESOLVED',
-      is_read: false,
-    },
+  // 8. Add activity log and notification concurrently
+  await Promise.all([
+    supabase.from('activity_logs').insert([
+      {
+        request_id: requestId,
+        user_id: user.id,
+        action: 'Request resolved',
+        old_value: { status: request.status },
+        new_value: { status: 'RESOLVED', resolution_note: resolutionNote },
+      },
+    ]),
+    supabase.from('notifications').insert([
+      {
+        user_id: request.created_by,
+        request_id: requestId,
+        title: 'Request Resolved',
+        message: `Your request ${request.ticket_number} has been resolved.`,
+        type: 'STATUS_RESOLVED',
+        is_read: false,
+      },
+    ]),
   ])
 
   revalidatePath('/staff/dashboard')

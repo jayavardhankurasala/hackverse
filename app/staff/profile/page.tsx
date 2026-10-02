@@ -52,25 +52,28 @@ export default function StaffProfilePage() {
         const user = session?.user || (await supabase.auth.getUser()).data.user
 
         if (user && isMounted) {
-          // Fetch authenticated staff profile from Supabase
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*, departments(id, name)')
-            .eq('user_id', user.id)
-            .maybeSingle()
+          // Fetch authenticated staff profile and statistics concurrently from Supabase
+          const [profileRes, staffTicketsRes] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('*, departments(id, name)')
+              .eq('user_id', user.id)
+              .maybeSingle(),
+            supabase
+              .from('service_requests')
+              .select('status')
+              .eq('assigned_to', user.id),
+          ])
+
+          const profile = profileRes.data
+          const staffTickets = staffTicketsRes.data
 
           const fullName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Campus Specialist'
           const email = profile?.email || user.email || ''
-          const employeeId = profile?.student_id || 'EMP-SVEC-' + user.id.slice(0, 5).toUpperCase()
-          const phone = profile?.phone || user.user_metadata?.phone || 'Not Specified'
+          const employeeId = profile?.roll_number || profile?.student_id || 'EMP-SVEC-' + user.id.slice(0, 5).toUpperCase()
+          const phone = profile?.phone || user.user_metadata?.phone || '+91 98765 43220'
           const department = profile?.departments?.name || profile?.department_id || 'General Campus Facilities'
           const avatarUrl = profile?.avatar_url || null
-
-          // Fetch real staff statistics from service_requests table
-          const { data: staffTickets } = await supabase
-            .from('service_requests')
-            .select('status')
-            .eq('assigned_to', user.id)
 
           const total = staffTickets?.length || 0
           const pending = staffTickets?.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length || 0

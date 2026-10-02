@@ -55,11 +55,18 @@ export default function StudentProfilePage() {
         const user = session?.user || (await supabase.auth.getUser()).data.user
 
         if (user && isMounted) {
-          const { data: dbProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', user.id)
-            .maybeSingle()
+          // Fetch profile & tickets concurrently to eliminate waterfall
+          const [{ data: dbProfile }, { data: tickets }] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', user.id)
+              .maybeSingle(),
+            supabase
+              .from('service_requests')
+              .select('status')
+              .eq('created_by', user.id)
+          ])
 
           const fullName = dbProfile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Student'
           const email = dbProfile?.email || user.email || ''
@@ -68,12 +75,6 @@ export default function StudentProfilePage() {
           const year = dbProfile?.year || user.user_metadata?.year || '3rd Year'
           const phone = dbProfile?.phone || user.user_metadata?.phone || '+91 98765 43210'
           const avatarUrl = dbProfile?.avatar_url || user.user_metadata?.avatar_url || null
-
-          // Fetch actual student ticket stats
-          const { data: tickets } = await supabase
-            .from('service_requests')
-            .select('status')
-            .eq('created_by', user.id)
 
           const total = tickets?.length || 0
           const pending = tickets?.filter((r) => r.status === 'SUBMITTED' || r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length || 0

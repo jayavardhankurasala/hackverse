@@ -19,13 +19,16 @@ export default async function AdminLayout({
     const { data: { user } } = await supabase.auth.getUser()
 
     if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle()
+      let userRole = (user.user_metadata?.role || '').toUpperCase()
+      if (!userRole) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        userRole = (profile?.role || 'STUDENT').toUpperCase()
+      }
 
-      const userRole = (profile?.role || user.user_metadata?.role || 'STUDENT').toUpperCase()
       if (userRole !== 'ADMIN') {
         targetRedirect = userRole === 'STAFF' ? '/staff/dashboard' : '/student/dashboard'
       }

@@ -29,12 +29,23 @@ export async function submitRequestRating(params: {
 
   const { requestId, rating, feedback } = parsed.data
 
-  // Fetch request and verify creator
-  const { data: request, error: reqError } = await supabase
-    .from('service_requests')
-    .select('id, created_by, status')
-    .eq('id', requestId)
-    .single()
+  // Fetch request and check for existing rating concurrently
+  const [
+    { data: request, error: reqError },
+    { data: existing },
+  ] = await Promise.all([
+    supabase
+      .from('service_requests')
+      .select('id, created_by, status')
+      .eq('id', requestId)
+      .single(),
+    supabase
+      .from('ratings')
+      .select('id')
+      .eq('request_id', requestId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
 
   if (reqError || !request) {
     return { error: 'Request not found' }
@@ -47,14 +58,6 @@ export async function submitRequestRating(params: {
   if (request.status !== 'RESOLVED' && request.status !== 'CLOSED') {
     return { error: 'You can only rate a request that has been resolved or closed' }
   }
-
-  // Check if rating already exists
-  const { data: existing } = await supabase
-    .from('ratings')
-    .select('id')
-    .eq('request_id', requestId)
-    .eq('user_id', user.id)
-    .maybeSingle()
 
   if (existing) {
     return { error: 'You have already submitted a rating for this request' }

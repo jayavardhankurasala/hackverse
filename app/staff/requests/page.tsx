@@ -49,12 +49,20 @@ export default function StaffRequestsPage() {
       const user = session?.user || (await supabase.auth.getUser()).data.user
 
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*, departments(id, name)')
-          .eq('user_id', user.id)
-          .maybeSingle()
+        const [profileRes, requestsRes] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*, departments(id, name)')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('service_requests')
+            .select('*')
+            .order('created_at', { ascending: false }),
+        ])
 
+        const profile = profileRes.data
+        const dbRequests = requestsRes.data
         const departmentName = profile?.departments?.name || profile?.department_id || 'IT Support'
         const staffName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Staff Member'
 
@@ -66,11 +74,6 @@ export default function StaffRequestsPage() {
           department: departmentName,
         }
         setCurrentUser(staffObj)
-
-        const { data: dbRequests } = await supabase
-          .from('service_requests')
-          .select('*')
-          .order('created_at', { ascending: false })
 
         if (dbRequests && dbRequests.length > 0) {
           const mapped: DemoRequest[] = dbRequests.map((r: any) => ({

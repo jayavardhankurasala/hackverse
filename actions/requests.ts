@@ -101,27 +101,32 @@ export async function createServiceRequest(formData: FormData) {
     return { error: error.message }
   }
 
-  // Log activity
-  await supabase.from('activity_logs').insert([
-    {
-      request_id: request.id,
-      user_id: user.id,
-      action: 'Request created',
-    }
-  ])
-
-  // Save attachment if exists
-  if (fileUrl && file) {
-    await supabase.from('request_attachments').insert([
+  // Concurrently log activity and save attachment (if present)
+  const postTasks: PromiseLike<any>[] = [
+    supabase.from('activity_logs').insert([
       {
         request_id: request.id,
-        file_url: fileUrl,
-        file_name: file.name,
-        file_type: fileType,
-        uploaded_by: user.id,
-      }
-    ])
+        user_id: user.id,
+        action: 'Request created',
+      },
+    ]),
+  ]
+
+  if (fileUrl && file) {
+    postTasks.push(
+      supabase.from('request_attachments').insert([
+        {
+          request_id: request.id,
+          file_url: fileUrl,
+          file_name: file.name,
+          file_type: fileType,
+          uploaded_by: user.id,
+        },
+      ])
+    )
   }
+
+  await Promise.all(postTasks)
 
   revalidatePath('/student/dashboard')
   revalidatePath('/student/requests')

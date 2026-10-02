@@ -38,11 +38,22 @@ export default function StudentDashboard() {
       const user = session?.user || (await supabase.auth.getUser()).data.user
 
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle()
+        // Concurrently fetch profile and user tickets
+        const [profileRes, requestsRes] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('service_requests')
+            .select('*')
+            .eq('created_by', user.id)
+            .order('created_at', { ascending: false }),
+        ])
+
+        const profile = profileRes.data
+        const dbRequests = requestsRes.data
 
         const rollNumber = profile?.roll_number || profile?.student_id || user.user_metadata?.roll_number || user.user_metadata?.student_id || undefined
         const branch = profile?.branch || user.user_metadata?.branch || 'CSE'
@@ -61,13 +72,6 @@ export default function StudentDashboard() {
           room: '',
         }
         setCurrentUser(studentProfile)
-
-        // Fetch user's actual tickets from Supabase database
-        const { data: dbRequests } = await supabase
-          .from('service_requests')
-          .select('*')
-          .eq('created_by', user.id)
-          .order('created_at', { ascending: false })
 
         if (dbRequests && dbRequests.length > 0) {
           const mapped: DemoRequest[] = dbRequests.map((r: any) => ({

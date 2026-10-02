@@ -60,23 +60,26 @@ export async function assignRequestStaff(
       departmentId,
     })
 
-    // Fetch the request
-    const { data: request, error: reqError } = await supabase
-      .from('service_requests')
-      .select('id, ticket_number, title, created_by, assigned_to, department_id')
-      .eq('id', parsed.requestId)
-      .single()
+    // Fetch request and assigned staff profile concurrently
+    const [
+      { data: request, error: reqError },
+      { data: staffProfile, error: staffError },
+    ] = await Promise.all([
+      supabase
+        .from('service_requests')
+        .select('id, ticket_number, title, created_by, assigned_to, department_id')
+        .eq('id', parsed.requestId)
+        .single(),
+      supabase
+        .from('profiles')
+        .select('user_id, full_name, role, department_id')
+        .eq('user_id', parsed.staffUserId)
+        .single(),
+    ])
 
     if (reqError || !request) {
       return { error: 'Request not found' }
     }
-
-    // Fetch assigned staff profile
-    const { data: staffProfile, error: staffError } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, role, department_id')
-      .eq('user_id', parsed.staffUserId)
-      .single()
 
     if (staffError || !staffProfile || staffProfile.role !== 'STAFF') {
       return { error: 'Selected user is not a valid staff member' }
@@ -101,39 +104,35 @@ export async function assignRequestStaff(
       return { error: updateError.message }
     }
 
-    // Create activity log
-    await supabase.from('activity_logs').insert([
-      {
-        request_id: parsed.requestId,
-        user_id: adminUser.id,
-        action: `Assigned to staff: ${staffProfile.full_name}`,
-        old_value: { assigned_to: request.assigned_to },
-        new_value: { assigned_to: parsed.staffUserId, status: 'ASSIGNED' },
-      },
-    ])
-
-    // Create notification for assigned staff member
-    await supabase.from('notifications').insert([
-      {
-        user_id: parsed.staffUserId,
-        request_id: parsed.requestId,
-        title: 'New Service Request Assigned',
-        message: `You have been assigned ticket ${request.ticket_number}: "${request.title}"`,
-        type: 'STAFF_ASSIGNED',
-        is_read: false,
-      },
-    ])
-
-    // Create notification for student/requester
-    await supabase.from('notifications').insert([
-      {
-        user_id: request.created_by,
-        request_id: parsed.requestId,
-        title: 'Staff Assigned to Your Request',
-        message: `Ticket ${request.ticket_number} has been assigned to ${staffProfile.full_name}.`,
-        type: 'STATUS_UPDATE',
-        is_read: false,
-      },
+    // Insert activity log and notifications concurrently
+    await Promise.all([
+      supabase.from('activity_logs').insert([
+        {
+          request_id: parsed.requestId,
+          user_id: adminUser.id,
+          action: `Assigned to staff: ${staffProfile.full_name}`,
+          old_value: { assigned_to: request.assigned_to },
+          new_value: { assigned_to: parsed.staffUserId, status: 'ASSIGNED' },
+        },
+      ]),
+      supabase.from('notifications').insert([
+        {
+          user_id: parsed.staffUserId,
+          request_id: parsed.requestId,
+          title: 'New Service Request Assigned',
+          message: `You have been assigned ticket ${request.ticket_number}: "${request.title}"`,
+          type: 'STAFF_ASSIGNED',
+          is_read: false,
+        },
+        {
+          user_id: request.created_by,
+          request_id: parsed.requestId,
+          title: 'Staff Assigned to Your Request',
+          message: `Ticket ${request.ticket_number} has been assigned to ${staffProfile.full_name}.`,
+          type: 'STATUS_UPDATE',
+          is_read: false,
+        },
+      ]),
     ])
 
     revalidatePath('/admin/dashboard')

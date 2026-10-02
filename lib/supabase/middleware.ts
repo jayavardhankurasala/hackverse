@@ -6,10 +6,30 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  const { pathname } = request.nextUrl
+
+  // Protected & Auth routes classification
+  const isProtectedRoute = pathname.startsWith('/student') || pathname.startsWith('/staff') || pathname.startsWith('/admin')
+  const isAuthRoute = pathname === '/login' || pathname === '/register'
+
+  // Performance optimization: Public routes bypass auth checks entirely (0ms overhead)
+  if (!isProtectedRoute && !isAuthRoute) {
+    return supabaseResponse
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
+    return supabaseResponse
+  }
+
+  // Fast token presence check: Avoid blocking HTTPS calls to Supabase if no session cookie exists
+  const allCookies = request.cookies.getAll()
+  const hasAuthCookie = allCookies.some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))
+
+  if (!hasAuthCookie) {
+    // Unauthenticated user heading to login/register or exploring demo
     return supabaseResponse
   }
 
@@ -22,7 +42,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -34,54 +54,28 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
-  // Protected routes check
-  const isProtectedRoute = pathname.startsWith('/student') || pathname.startsWith('/staff') || pathname.startsWith('/admin')
-  const isAuthRoute = pathname === '/login' || pathname === '/register'
-
-  // In demo mode or when user is exploring demo personas, allow smooth client navigation
-  const demoRoleCookie = request.cookies.get('campus_demo_role')?.value
-
-  if (isProtectedRoute && !user) {
-    // If exploring via demo mode, allow access
-    // This supports the standalone hackathon demo requirement
-    return supabaseResponse
-  }
-
-  if (isAuthRoute && user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    const role = profile?.role?.toLowerCase() || 'student'
-    const url = request.nextUrl.clone()
-    url.pathname = `/${role}/dashboard`
-    return NextResponse.redirect(url)
-  }
-
-  // Handle cross-role access for authenticated Supabase users
-  if (isProtectedRoute && user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    const role = (profile?.role || user.user_metadata?.role || 'STUDENT').toLowerCase()
-    
-    // An authenticated user cannot access unauthorized role routes
-    if (!pathname.startsWith(`/${role}`)) {
-       const url = request.nextUrl.clone()
-       url.pathname = `/${role}/dashboard`
-       return NextResponse.redirect(url)
+    if (isAuthRoute && user) {
+      const role = (user.user_metadata?.role || 'STUDENT').toLowerCase()
+      const url = request.nextUrl.clone()
+      url.pathname = `/${role}/dashboard`
+      return NextResponse.redirect(url)
     }
+
+    if (isProtectedRoute && user) {
+      const role = (user.user_metadata?.role || 'STUDENT').toLowerCase()
+      if (!pathname.startsWith(`/${role}`)) {
+        const url = request.nextUrl.clone()
+        url.pathname = `/${role}/dashboard`
+        return NextResponse.redirect(url)
+      }
+    }
+  } catch (err) {
+    // Silently fall through on network interruptions to keep navigation responsive
   }
 
   return supabaseResponse

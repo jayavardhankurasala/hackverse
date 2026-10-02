@@ -31,23 +31,26 @@ export async function addComment(formData: FormData) {
 
   const { requestId, comment } = parsed.data
 
-  // Verify access: user must be creator, assigned staff, or admin
-  const { data: request, error: reqError } = await supabase
-    .from('service_requests')
-    .select('id, created_by, assigned_to')
-    .eq('id', requestId)
-    .single()
+  // Verify access concurrently: fetch request and profile in parallel
+  const [
+    { data: request, error: reqError },
+    { data: profile },
+  ] = await Promise.all([
+    supabase
+      .from('service_requests')
+      .select('id, created_by, assigned_to')
+      .eq('id', requestId)
+      .single(),
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single(),
+  ])
 
   if (reqError || !request) {
     return { error: 'Request not found or access denied' }
   }
-
-  // Check role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single()
 
   const isAdmin = profile?.role === 'ADMIN'
   const isCreator = request.created_by === user.id
