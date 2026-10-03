@@ -18,6 +18,7 @@ import {
   FileText,
   MapPin,
   Building,
+  Bus,
   CheckCircle2,
   Eye,
   ArrowRight,
@@ -104,6 +105,11 @@ export default function NewRequestPage() {
   const currentPriority = watch('priority') as RequestPriority
   const currentBuilding = watch('building') || ''
   const currentRoom = watch('room') || ''
+
+  const isBusOrTransport =
+    currentBuilding.toLowerCase().includes('bus') ||
+    currentBuilding.toLowerCase().includes('transport') ||
+    currentCategory === 'Transport'
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null)
@@ -547,15 +553,76 @@ export default function NewRequestPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                  Building / Block <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  {...register('building')}
-                  type="text"
-                  placeholder="e.g. Hostel Block A"
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-800">
+                    Building / Block / Bus <span className="text-rose-500">*</span>
+                  </label>
+                  {isBusOrTransport && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                      <Bus className="w-3 h-3 text-amber-600" />
+                      Transport / Bus
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    {...register('building')}
+                    type="text"
+                    list="campus-locations-list"
+                    placeholder="e.g. Hostel Block A, CSE Block, or College Bus #14"
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                  />
+                  <datalist id="campus-locations-list">
+                    <option value="Hostel Block A (Boys)" />
+                    <option value="Hostel Block B (Boys)" />
+                    <option value="Hostel Block C (Girls)" />
+                    <option value="Academic Block (Main)" />
+                    <option value="CSE / IT Block" />
+                    <option value="ECE / EEE Block" />
+                    <option value="Mechanical & Civil Block" />
+                    <option value="Library & Admin Block" />
+                    <option value="College Bus / Transport Fleet" />
+                    <option value="College Bus #12 (Bhimavaram)" />
+                    <option value="College Bus #14 (Eluru)" />
+                    <option value="College Bus #18 (Tanuku)" />
+                    <option value="College Bus #22 (Palakollu)" />
+                    <option value="Canteen & Mess Hall" />
+                    <option value="Sports Complex & Grounds" />
+                  </datalist>
+                </div>
+
+                {/* Quick Select Location Pills */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium mr-0.5">Quick:</span>
+                  {[
+                    { label: 'Hostel Block A', val: 'Hostel Block A' },
+                    { label: 'Hostel Block B', val: 'Hostel Block B' },
+                    { label: 'CSE Block', val: 'CSE / IT Block' },
+                    { label: '🚌 College Bus', val: 'College Bus / Transport Fleet', isBus: true },
+                    { label: 'Library', val: 'Library & Admin Block' },
+                  ].map((chip) => (
+                    <button
+                      key={chip.val}
+                      type="button"
+                      onClick={() => {
+                        setValue('building', chip.val, { shouldValidate: true })
+                        if (chip.isBus && currentCategory === 'IT Support') {
+                          setValue('category', 'Transport')
+                        }
+                      }}
+                      className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition font-medium cursor-pointer ${
+                        currentBuilding === chip.val
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold'
+                          : chip.isBus
+                          ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+
                 {errors.building && (
                   <p className="mt-1.5 text-xs text-rose-600 font-medium">{errors.building.message}</p>
                 )}
@@ -563,12 +630,16 @@ export default function NewRequestPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                  Room / Lab Number
+                  {isBusOrTransport ? 'Bus Number / Route / Seat' : 'Room / Lab Number'}
                 </label>
                 <input
                   {...register('room')}
                   type="text"
-                  placeholder="e.g. A-204"
+                  placeholder={
+                    isBusOrTransport
+                      ? 'e.g. Bus #14 (Eluru Route), Seat 22'
+                      : 'e.g. A-204 or Lab 3'
+                  }
                   className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
               </div>
@@ -581,7 +652,11 @@ export default function NewRequestPage() {
               <input
                 {...register('location')}
                 type="text"
-                placeholder="e.g. 2nd Floor corridor opposite water cooler"
+                placeholder={
+                  isBusOrTransport
+                    ? 'e.g. Boarding at campus gate 2 or en-route to Tadepalligudem'
+                    : 'e.g. 2nd Floor corridor opposite water cooler'
+                }
                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
               {errors.location && (

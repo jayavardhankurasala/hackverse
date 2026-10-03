@@ -40,18 +40,14 @@ export function StudentSidebar({
       active: pathname.startsWith('/student/requests') && pathname !== '/student/requests/new',
     },
     {
-      name: 'Report a Problem',
-      href: '/student/requests/new',
-      icon: PlusCircle,
-      active: pathname === '/student/requests/new',
-    },
-    {
       name: 'Profile & Details',
       href: '/student/profile',
       icon: User,
       active: pathname === '/student/profile',
     },
   ]
+
+  const isNewRequestActive = pathname === '/student/requests/new'
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-white border-r border-slate-200/90 text-slate-800 shadow-xs">
@@ -93,7 +89,11 @@ export function StudentSidebar({
         <Link
           href="/student/requests/new"
           onClick={() => setIsMobileOpen(false)}
-          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-98"
+          className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-98 ${
+            isNewRequestActive
+              ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-400/40'
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs hover:shadow-md'
+          }`}
         >
           <PlusCircle className="w-4 h-4 text-emerald-100" />
           <span>Report a Problem</span>
