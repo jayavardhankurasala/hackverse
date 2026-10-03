@@ -365,14 +365,26 @@ export function createDemoRequest(data: {
 
   // Strict 1-to-1 Domain Mapping across the 8 Specialized Campus Domains
   const defaultDept = data.category
-  let defaultStaff = 'Vikram Rao'
-  if (data.category === 'Electrical') defaultStaff = 'Suresh Kumar'
-  else if (data.category === 'Plumbing') defaultStaff = 'Ramesh Naidu'
-  else if (data.category === 'Maintenance') defaultStaff = 'K. Prasad'
-  else if (data.category === 'Hostel') defaultStaff = 'Anjali Devi'
-  else if (data.category === 'Transport') defaultStaff = 'M. Venkat'
-  else if (data.category === 'Cleaning') defaultStaff = 'Lakshmi Bai'
-  else if (data.category === 'Administration') defaultStaff = 'G. Satyanarayana'
+  let defaultStaff = 'Vikram Rao (IT)'
+  if (data.category === 'Electrical') defaultStaff = 'Suresh Kumar (Electrical)'
+  else if (data.category === 'Plumbing') defaultStaff = 'Ramesh Naidu (Plumbing)'
+  else if (data.category === 'Maintenance') defaultStaff = 'K. Prasad (Maintenance)'
+  else if (data.category === 'Hostel') defaultStaff = 'Anjali Devi (Hostel Warden)'
+  else if (data.category === 'Transport') defaultStaff = 'M. Venkat (Transport Incharge)'
+  else if (data.category === 'Cleaning') defaultStaff = 'Lakshmi Bai (Sanitation)'
+  else if (data.category === 'Administration') defaultStaff = 'G. Satyanarayana (Admin Office)'
+
+  const staffIdMap: Record<string, string> = {
+    'IT Support': '05cc664a-f101-46d9-9faa-8f994a239220',
+    Electrical: '44015d09-af60-4949-931d-f8da6a82ad27',
+    Plumbing: '6f66e8f4-bd91-4bfb-b1e6-4c6db8cda110',
+    Maintenance: 'a490ca8f-dba4-43a9-a6d7-44e8fc174011',
+    Hostel: '5e5036c6-ed0d-4096-a679-a0b134f5d470',
+    Transport: '0970ef5a-4e4c-4bef-a7d2-2711b279b4e8',
+    Cleaning: 'e6df93ef-509d-4507-8b3b-8aa820ca4454',
+    Administration: '75c4a99f-b46b-4f0c-a856-3814f5b16ed5',
+  }
+  const assignedStaffId = staffIdMap[data.category] || '05cc664a-f101-46d9-9faa-8f994a239220'
 
   const newReq: DemoRequest = {
     id,
@@ -386,8 +398,10 @@ export function createDemoRequest(data: {
     room: data.room || '',
     studentId: data.studentId,
     studentName: data.studentName,
-    status: 'SUBMITTED',
+    status: 'ASSIGNED',
     department: defaultDept,
+    assignedStaffId,
+    assignedStaffName: defaultStaff,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     imageUrl: data.imageUrl,
@@ -404,9 +418,9 @@ export function createDemoRequest(data: {
   const updatedList = [newReq, ...all]
   saveDemoRequests(updatedList)
 
-  // Append initial activity log
+  // Append initial activity logs
   addDemoLog(id, `Request submitted by ${data.studentName}`, data.studentName)
-  addDemoLog(id, `AI Triage: Suggested ${newReq.aiRecommendation?.suggestedStaff} (${defaultDept})`, 'System AI')
+  addDemoLog(id, `AI Auto-Assignment: Assigned to ${defaultStaff} (${defaultDept}) based on workload`, 'System AI')
 
   // Asynchronously sync new ticket to Supabase database
   if (isClient()) {

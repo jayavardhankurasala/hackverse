@@ -58,6 +58,17 @@ const CATEGORIES: ServiceCategory[] = [
 
 const PRIORITIES: RequestPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
+const DOMAIN_STAFF_MAP: Record<string, string> = {
+  'IT Support': 'Vikram Rao (IT)',
+  Electrical: 'Suresh Kumar (Electrical)',
+  Plumbing: 'Ramesh Naidu (Plumbing)',
+  Maintenance: 'K. Prasad (Maintenance)',
+  Hostel: 'Anjali Devi (Hostel Warden)',
+  Transport: 'M. Venkat (Transport Incharge)',
+  Cleaning: 'Lakshmi Bai (Sanitation)',
+  Administration: 'G. Satyanarayana (Admin Office)',
+}
+
 export default function NewRequestPage() {
   const router = useRouter()
   const currentUser = getCurrentDemoUser()
@@ -182,6 +193,10 @@ export default function NewRequestPage() {
 
       if (res.success && res.data) {
         setAiResult(res.data)
+        // Automatically override inaccurate user selections instantly before submission
+        setValue('category', res.data.category, { shouldValidate: true })
+        setValue('priority', res.data.priority, { shouldValidate: true })
+        setAiApplied(true)
       } else {
         setAiError(res.error || 'AI analysis temporarily unavailable. You can proceed manually.')
       }
@@ -195,8 +210,8 @@ export default function NewRequestPage() {
   // Apply AI recommendations to form (advisory, editable)
   const handleApplyAI = () => {
     if (!aiResult) return
-    setValue('category', aiResult.category)
-    setValue('priority', aiResult.priority)
+    setValue('category', aiResult.category, { shouldValidate: true })
+    setValue('priority', aiResult.priority, { shouldValidate: true })
     setAiApplied(true)
   }
 
@@ -205,6 +220,27 @@ export default function NewRequestPage() {
     setError(null)
 
     try {
+      // If AI analysis hasn't been run yet, do an automated triage pass to catch safety overrides
+      let finalAi = aiResult
+      if (!finalAi && (data.title || data.description)) {
+        try {
+          const autoRes = await requestAIAnalysis({
+            title: data.title,
+            description: data.description,
+            location: `${data.building} ${data.room} ${data.location}`,
+            currentCategory: data.category,
+            currentPriority: data.priority,
+          })
+          if (autoRes.success && autoRes.data) {
+            finalAi = autoRes.data
+            if (autoRes.data.isSafetyOverride || autoRes.data.priority === 'CRITICAL') {
+              data.category = autoRes.data.category
+              data.priority = autoRes.data.priority
+            }
+          }
+        } catch {}
+      }
+
       const { createClient } = await import('@/utils/supabase/client')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
@@ -222,10 +258,10 @@ export default function NewRequestPage() {
         if (selectedFile) {
           formData.append('image', selectedFile)
         }
-        if (aiResult) {
-          formData.append('aiCategory', aiResult.category)
-          formData.append('aiPriority', aiResult.priority)
-          formData.append('aiSummary', aiResult.summary)
+        if (finalAi) {
+          formData.append('aiCategory', finalAi.category)
+          formData.append('aiPriority', finalAi.priority)
+          formData.append('aiSummary', finalAi.summary)
         }
 
         try {
@@ -511,10 +547,20 @@ export default function NewRequestPage() {
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-xs font-semibold text-slate-400 uppercase block">Suggested Staff</span>
                     <span className="text-sm font-bold text-emerald-700">
-                      {aiResult.department === 'IT Support' ? 'Vikram Rao' : 'Suresh Kumar'}
+                      {DOMAIN_STAFF_MAP[aiResult.category] || 'Domain Technician'}
                     </span>
                   </div>
                 </div>
+
+                {aiResult.isSafetyOverride && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 font-medium animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold text-rose-900 block">Critical Safety Hazard Auto-Corrected</strong>
+                      <span>The AI engine identified an urgent safety risk. Priority was forcefully elevated to <strong>CRITICAL</strong> and domain locked to <strong>{aiResult.category}</strong>.</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="text-xs space-y-1.5 bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
                   <p className="text-slate-700 leading-relaxed">

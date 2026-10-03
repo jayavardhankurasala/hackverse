@@ -9,7 +9,7 @@
 
 **CampusDesk** is an enterprise-grade campus facilities and service desk platform designed for modern universities and residential hostels. It bridges the gap between **students reporting daily campus grievances** (such as Wi-Fi outages, plumbing leaks, electrical faults, and room repairs), **specialized maintenance technicians executing hands-on repairs**, and **central university administrators overseeing SLA response times, resource allocation, and facility analytics**.
 
-Integrated with **Google Gemini 2.0 Flash**, every student incident is analyzed in real-time to automatically predict severity levels, assign SLA response windows, route to the appropriate domain specialist, and detect critical safety hazards before human triage even starts.
+Integrated with **Groq Llama 3.3 70B, xAI Grok, and Gemini 2.0 Flash**, every student incident is analyzed in real-time to automatically predict severity levels, assign SLA response windows, route to the appropriate domain specialist, detect critical safety hazards with instant override, and balance dispatch via a Workload-Based Auto-Assignment Engine before human triage even starts.
 
 ---
 
@@ -18,7 +18,7 @@ Integrated with **Google Gemini 2.0 Flash**, every student incident is analyzed 
 | The Traditional University Problem | The CampusDesk Solution |
 | :--- | :--- |
 | **Scattered Channels**: Students report issues via WhatsApp groups, physical registers in hostel warden offices, or word-of-mouth. Tickets get lost. | **Single Centralized Service Portal**: All issues are logged digitally with photos, room numbers, and instant timestamped tracking (`CR-XXXX`). |
-| **Delayed & Blind Triage**: Wardens manually read complaints hours or days later with no prioritization. Electrical fires and water leaks sit in the same queue as minor cosmetic requests. | **AI-Powered Triage with Google Gemini**: Incident descriptions are analyzed in `< 1 sec` to flag emergency hazards (`CRITICAL`) vs routine tasks (`LOW`), suggesting the right technician automatically. |
+| **Delayed & Blind Triage**: Wardens manually read complaints hours or days later with no prioritization. Electrical fires and water leaks sit in the same queue as minor cosmetic requests. | **AI-Powered Triage with Groq & Grok**: Incident descriptions are analyzed in `< 1 sec` to forcefully escalate emergency hazards (`CRITICAL`) vs routine tasks (`LOW`), auto-assigning technicians based on live active workloads. |
 | **No Accountability & Status Black Holes**: Students have no idea if someone looked at their ticket, who was assigned, or when it will be fixed. | **Full Lifecycle Tracking**: Real-time status milestones: `SUBMITTED` ➔ `ASSIGNED` ➔ `IN_PROGRESS` ➔ `RESOLVED` ➔ `CLOSED` with technician notes and student 5-star ratings. |
 | **Zero Operational Visibility**: Campus administrators lack metrics on which hostels fail most often, average repair turnarounds, and technician workloads. | **Admin Intelligence Command Center**: Real-time analytics, category distribution charts, priority queues, and domain-wide SLA monitoring. |
 

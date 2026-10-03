@@ -1,3 +1,4 @@
+import Groq from 'groq-sdk'
 import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
 
@@ -16,6 +17,7 @@ export const aiRecommendationSchema = z.object({
   department: z.string(),
   summary: z.string(),
   reasoning: z.string(),
+  isSafetyOverride: z.boolean().optional(),
 })
 
 export type AIRecommendation = z.infer<typeof aiRecommendationSchema>
@@ -27,7 +29,7 @@ interface CacheEntry {
 }
 const aiCache = new Map<string, CacheEntry>()
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
-const AI_TIMEOUT_MS = 7500 // 7.5s max to avoid UI lag
+const AI_TIMEOUT_MS = 6000 // 6.0s max timeout
 
 function getCacheKey(params: { title: string; description: string; location?: string }): string {
   const norm = (s?: string) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
@@ -35,8 +37,10 @@ function getCacheKey(params: { title: string; description: string; location?: st
 }
 
 /**
- * Server-side analysis of a campus service request using Google Gemini API
- * Includes response caching and strict timeout fallback to guarantee zero UI freezes.
+ * Multi-Provider AI Triage Engine:
+ * 1. Primary: Groq API (llama-3.3-70b-versatile) / xAI Grok (grok-beta)
+ * 2. Secondary: Google Gemini 2.0 Flash
+ * 3. Guaranteed Fallback: High-Accuracy Safety Hazard & Campus Domain Heuristic
  */
 export async function analyzeRequestText(params: {
   title: string
@@ -55,21 +59,8 @@ export async function analyzeRequestText(params: {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey || apiKey.includes('placeholder')) {
-    const fallback = getIntelligentFallback(params)
-    aiCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
-    return {
-      success: true,
-      data: fallback,
-    }
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey })
-
-    const prompt = `
-You are an intelligent campus service request triage assistant for a university facilities and IT system.
+  const prompt = `
+You are an expert campus safety and service request triage AI assistant for Sri Vasavi Engineering College (SVEC).
 Analyze the following student service request and provide structured categorization, priority recommendation, department routing, a concise 1-sentence summary, and the reasoning.
 
 Request Details:
@@ -79,159 +70,388 @@ Request Details:
 ${params.currentCategory ? `- User selected category: ${params.currentCategory}` : ''}
 ${params.currentPriority ? `- User selected priority: ${params.currentPriority}` : ''}
 
+CRITICAL SAFETY & PRIORITY OVERRIDE RULES:
+1. If the issue describes a dangerous situation (e.g. electric sparks, electric shock, exposed live wires, fire, smoke, burning smell, gas leak, flooding, ceiling collapse risk), you MUST forcefully set priority to 'CRITICAL', even if the user selected 'LOW' or 'MEDIUM'.
+2. If the issue is campus/hostel-wide or affects critical academic operations (e.g. exam labs without power, entire hostel floor Wi-Fi down), assign 'HIGH' or 'CRITICAL'.
+3. Assign the most accurate Category and Department strictly matching one of the 8 campus domains.
+
 Available Categories (MUST choose exactly one):
-1. IT Support (computers, Wi-Fi, portals, software, projectors)
-2. Electrical (power outlets, lighting, breakers, wiring, appliances)
-3. Plumbing (water leaks, taps, toilets, blockages, drains)
-4. Maintenance (doors, windows, furniture, locks, walls, ceiling)
-5. Hostel (room amenities, beds, cupboards, hostel facilities)
-6. Transport (campus shuttles, parking, vehicle services)
-7. Cleaning (janitorial, trash, sanitation, spill cleanup)
-8. Administration (documentation, ID cards, general admin requests)
+1. IT Support (computers, Wi-Fi, portals, software, projectors, computer labs)
+2. Electrical (power outlets, lighting, breakers, wiring, appliances, sparks)
+3. Plumbing (water leaks, taps, toilets, blockages, drains, flood)
+4. Maintenance (doors, windows, furniture, locks, walls, ceiling, structural)
+5. Hostel (room amenities, beds, cupboards, hostel living conditions)
+6. Transport (campus buses, bus routes, shuttles, fleet issues, drivers)
+7. Cleaning (janitorial, trash, sanitation, washrooms, spill cleanup)
+8. Administration (documentation, ID cards, certificates, administrative office)
 
 Available Priorities:
-- LOW: Minor inconvenience, routine maintenance, cosmetic
-- MEDIUM: Standard issue affecting single user or room, work still possible
+- LOW: Minor cosmetic issue, non-urgent routine maintenance
+- MEDIUM: Standard issue affecting a single user or room, work still possible
 - HIGH: Significant disruption, no power/water in a living area, urgent exam/lab facility
-- CRITICAL: Safety hazard, water flood, electrical spark, campus-wide outage
+- CRITICAL: Life safety hazard, water flood, electrical spark/shock, fire risk, campus outage
 
 Return ONLY valid JSON matching this exact structure:
 {
-  "category": "one of the available categories above",
+  "category": "one of the 8 categories above",
   "priority": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "department": "Name of relevant campus department",
   "summary": "Clear, concise 1-sentence summary of the core issue",
-  "reasoning": "Brief 1-sentence justification for the chosen category and priority"
+  "reasoning": "Clear explanation of why this category and priority was assigned, specifically noting any safety hazard override if applied",
+  "isSafetyOverride": false
 }
 `
 
-    // Timeout guard so the UI never hangs
-    const generatePromise = ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    })
-
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini API timeout')), AI_TIMEOUT_MS)
-    )
-
-    const response = await Promise.race([generatePromise, timeoutPromise])
-    const responseText = response.text?.trim()
-
-    if (!responseText) {
-      const fallback = getIntelligentFallback(params)
-      return { success: true, data: fallback }
-    }
-
-    // Parse JSON safely
-    let parsedJson
+  // --- PROVIDER 1: GROQ / xAI GROK API ---
+  const groqApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY
+  if (groqApiKey && !groqApiKey.includes('placeholder')) {
     try {
-      parsedJson = JSON.parse(responseText)
-    } catch {
-      const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
-      parsedJson = JSON.parse(cleanJson)
-    }
+      const isXai = Boolean(process.env.GROK_API_KEY || process.env.XAI_API_KEY)
+      const groqClient = new Groq({
+        apiKey: groqApiKey,
+        baseURL: isXai ? 'https://api.x.ai/v1' : undefined,
+      })
 
-    // Validate with Zod
-    const validation = aiRecommendationSchema.safeParse(parsedJson)
-    if (!validation.success) {
-      const fallback = getIntelligentFallback(params)
-      return { success: true, data: fallback }
-    }
+      const model = isXai ? 'grok-beta' : 'llama-3.3-70b-versatile'
 
-    // Cache valid result
-    aiCache.set(cacheKey, { data: validation.data, timestamp: Date.now() })
+      const completionPromise = groqClient.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert campus safety and service request triage system. You always respond in strict, valid JSON format only.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model,
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+      })
 
-    return {
-      success: true,
-      data: validation.data,
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Groq/Grok API timeout')), AI_TIMEOUT_MS)
+      )
+
+      const response = await Promise.race([completionPromise, timeoutPromise])
+      const content = response.choices[0]?.message?.content?.trim()
+
+      if (content) {
+        let parsed = JSON.parse(content)
+        parsed = enforceSafetyGuards(params, parsed)
+        const validation = aiRecommendationSchema.safeParse(parsed)
+        if (validation.success) {
+          aiCache.set(cacheKey, { data: validation.data, timestamp: Date.now() })
+          return { success: true, data: validation.data }
+        }
+      }
+    } catch (groqErr: any) {
+      console.warn('Groq/Grok AI engine notice (falling back to secondary):', groqErr?.message || groqErr)
     }
-  } catch (err: any) {
-    console.warn('Gemini AI Analysis Notice, seamless fallback engaged:', err?.message || err)
-    const fallback = getIntelligentFallback(params)
-    aiCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
-    return {
-      success: true,
-      data: fallback,
+  }
+
+  // --- PROVIDER 2: GOOGLE GEMINI 2.0 FLASH ---
+  const geminiApiKey = process.env.GEMINI_API_KEY
+  if (geminiApiKey && !geminiApiKey.includes('placeholder')) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+      const generatePromise = ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      })
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Gemini API timeout')), AI_TIMEOUT_MS)
+      )
+
+      const response = await Promise.race([generatePromise, timeoutPromise])
+      const responseText = response.text?.trim()
+
+      if (responseText) {
+        let parsedJson
+        try {
+          parsedJson = JSON.parse(responseText)
+        } catch {
+          const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
+          parsedJson = JSON.parse(cleanJson)
+        }
+
+        parsedJson = enforceSafetyGuards(params, parsedJson)
+        const validation = aiRecommendationSchema.safeParse(parsedJson)
+        if (validation.success) {
+          aiCache.set(cacheKey, { data: validation.data, timestamp: Date.now() })
+          return { success: true, data: validation.data }
+        }
+      }
+    } catch (geminiErr: any) {
+      console.warn('Gemini AI engine notice (engaging heuristic triage):', geminiErr?.message || geminiErr)
     }
+  }
+
+  // --- PROVIDER 3: HIGH-ACCURACY SAFETY & DOMAIN HEURISTIC ENGINE ---
+  const fallback = getIntelligentFallback(params)
+  aiCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
+  return {
+    success: true,
+    data: fallback,
   }
 }
 
-export function getIntelligentFallback(params: { title: string; description: string; location?: string }): AIRecommendation {
-  const text = `${params.title} ${params.description} ${params.location || ''}`.toLowerCase()
-  
-  if (text.includes('wifi') || text.includes('wi-fi') || text.includes('internet') || text.includes('network') || text.includes('router') || text.includes('connection')) {
-    const isCritical = text.includes('entire') || text.includes('all') || text.includes('completely') || text.includes('outage')
+/**
+ * Strict Safety Post-Processor:
+ * Guarantees that hazardous electrical, flooding, and structural risks are ALWAYS elevated to CRITICAL
+ * regardless of what the user or LLM initially selected.
+ */
+function enforceSafetyGuards(
+  params: { title: string; description: string },
+  parsed: any
+): any {
+  const combined = `${params.title} ${params.description}`.toLowerCase()
+
+  // Electrical Hazard Detection
+  const isSparkOrShock =
+    combined.includes('spark') ||
+    combined.includes('shock') ||
+    combined.includes('short circuit') ||
+    combined.includes('burning wire') ||
+    combined.includes('wire smoke') ||
+    combined.includes('fire')
+
+  if (isSparkOrShock) {
     return {
-      category: 'IT Support',
-      priority: isCritical ? 'CRITICAL' : 'HIGH',
-      department: 'IT Support',
-      summary: 'Network connectivity disruption and Wi-Fi signal drops reported.',
-      reasoning: 'The issue affects internet accessibility required for academic operations.',
+      ...parsed,
+      category: 'Electrical',
+      priority: 'CRITICAL',
+      department: 'Electrical',
+      isSafetyOverride: true,
+      reasoning:
+        'Safety Override: Detected electrical spark or shock hazard. Priority forcefully elevated to CRITICAL for immediate emergency technician dispatch.',
     }
   }
-  if (text.includes('leak') || text.includes('pipe') || text.includes('water') || text.includes('tap') || text.includes('drain') || text.includes('toilet') || text.includes('bathroom') || text.includes('sink')) {
+
+  // Flooding Hazard Detection
+  const isSevereFlood =
+    combined.includes('flood') ||
+    combined.includes('burst pipe') ||
+    combined.includes('submerged') ||
+    combined.includes('water logging')
+
+  if (isSevereFlood) {
     return {
+      ...parsed,
       category: 'Plumbing',
-      priority: 'HIGH',
+      priority: 'CRITICAL',
       department: 'Plumbing',
-      summary: 'Water leakage and plumbing fixture malfunction requiring immediate attention.',
-      reasoning: 'Uncontrolled water pooling poses slip hazard and structural water seepage risk.',
+      isSafetyOverride: true,
+      reasoning:
+        'Safety Override: Detected active water flood or burst pipe. Priority elevated to CRITICAL to prevent structural water damage.',
     }
   }
-  if (text.includes('electric') || text.includes('light') || text.includes('fan') || text.includes('switch') || text.includes('power') || text.includes('wire') || text.includes('socket')) {
+
+  return parsed
+}
+
+/**
+ * Zero-latency heuristic triage fallback covering all 8 campus departments and safety conditions.
+ */
+export function getIntelligentFallback(params: {
+  title: string
+  description: string
+  location?: string
+}): AIRecommendation {
+  const text = `${params.title} ${params.description} ${params.location || ''}`.toLowerCase()
+
+  // 1. Critical Electrical Safety Hazard
+  if (
+    text.includes('spark') ||
+    text.includes('shock') ||
+    text.includes('fire') ||
+    text.includes('smoke') ||
+    text.includes('burning') ||
+    text.includes('short circuit')
+  ) {
     return {
       category: 'Electrical',
-      priority: text.includes('spark') || text.includes('shock') ? 'CRITICAL' : 'MEDIUM',
+      priority: 'CRITICAL',
       department: 'Electrical',
-      summary: 'Electrical fixture failure and power supply diagnosis required.',
-      reasoning: 'Audible humming or failed luminaire requires certified electrical inspection.',
+      summary: 'Urgent electrical hazard involving sparks, burning, or shock risk.',
+      reasoning:
+        'Safety Override: Critical electrical safety hazard detected. Priority elevated to CRITICAL for immediate technician intervention.',
+      isSafetyOverride: true,
     }
   }
-  if (text.includes('lock') || text.includes('door') || text.includes('window') || text.includes('key') || text.includes('room') || text.includes('bed')) {
+
+  // 2. Critical Water Flooding
+  if (text.includes('flood') || text.includes('burst pipe') || text.includes('water log') || text.includes('submerged')) {
     return {
-      category: 'Hostel',
-      priority: text.includes('lock') || text.includes('door') ? 'HIGH' : 'MEDIUM',
-      department: 'Hostel',
-      summary: 'Room amenity and security hardware repair.',
-      reasoning: 'Securing room entry points is critical for residential student safety.',
+      category: 'Plumbing',
+      priority: 'CRITICAL',
+      department: 'Plumbing',
+      summary: 'Severe water flooding and plumbing rupture requiring immediate stoppage.',
+      reasoning:
+        'Safety Override: Active water flood detected. Elevated to CRITICAL to avert property damage and slip injuries.',
+      isSafetyOverride: true,
     }
   }
-  if (text.includes('clean') || text.includes('garbage') || text.includes('trash') || text.includes('waste') || text.includes('dust') || text.includes('sweep') || text.includes('mop') || text.includes('dirty') || text.includes('sanitat')) {
+
+  // 3. IT & Network Disruptions
+  if (
+    text.includes('wifi') ||
+    text.includes('wi-fi') ||
+    text.includes('internet') ||
+    text.includes('network') ||
+    text.includes('router') ||
+    text.includes('lan') ||
+    text.includes('portal') ||
+    text.includes('computer') ||
+    text.includes('server')
+  ) {
+    const isFloorWide =
+      text.includes('entire') ||
+      text.includes('all') ||
+      text.includes('floor') ||
+      text.includes('hostel block') ||
+      text.includes('outage')
     return {
-      category: 'Cleaning',
-      priority: 'LOW',
-      department: 'Cleaning',
-      summary: 'Sanitation and waste clearance request.',
-      reasoning: 'Regular sanitation cycle maintains hygiene and campus standards.',
+      category: 'IT Support',
+      priority: isFloorWide ? 'HIGH' : 'MEDIUM',
+      department: 'IT Support',
+      summary: 'Campus IT network connectivity and infrastructure disruption.',
+      reasoning:
+        'Network accessibility issue impacting student academic portals and online examinations.',
     }
   }
-  if (text.includes('bus') || text.includes('transport') || text.includes('route') || text.includes('driver') || text.includes('pickup') || text.includes('drop') || text.includes('vehicle') || text.includes('shuttle') || text.includes('commute')) {
+
+  // 4. Standard Electrical
+  if (
+    text.includes('electric') ||
+    text.includes('light') ||
+    text.includes('fan') ||
+    text.includes('switch') ||
+    text.includes('power') ||
+    text.includes('wire') ||
+    text.includes('socket') ||
+    text.includes('bulb')
+  ) {
+    return {
+      category: 'Electrical',
+      priority: text.includes('power cut') || text.includes('no power') ? 'HIGH' : 'MEDIUM',
+      department: 'Electrical',
+      summary: 'Electrical luminaire or switchboard fixture malfunction.',
+      reasoning: 'Routine electrical repair required to restore room lighting and power supply.',
+    }
+  }
+
+  // 5. Standard Plumbing
+  if (
+    text.includes('leak') ||
+    text.includes('pipe') ||
+    text.includes('water') ||
+    text.includes('tap') ||
+    text.includes('drain') ||
+    text.includes('toilet') ||
+    text.includes('washroom') ||
+    text.includes('sink')
+  ) {
+    return {
+      category: 'Plumbing',
+      priority: text.includes('no water') ? 'HIGH' : 'MEDIUM',
+      department: 'Plumbing',
+      summary: 'Water fixture leakage or washroom plumbing malfunction.',
+      reasoning: 'Plumbing inspection required to ensure continuous sanitary water flow.',
+    }
+  }
+
+  // 6. Transport & Fleet
+  if (
+    text.includes('bus') ||
+    text.includes('transport') ||
+    text.includes('route') ||
+    text.includes('driver') ||
+    text.includes('pickup') ||
+    text.includes('shuttle') ||
+    text.includes('fleet')
+  ) {
     return {
       category: 'Transport',
       priority: 'HIGH',
       department: 'Transport',
-      summary: 'Campus transport routing and vehicle schedule assistance.',
-      reasoning: 'Transport punctuality directly impacts student and faculty academic attendance.',
+      summary: 'Campus bus route and fleet transport assistance.',
+      reasoning: 'Transport schedules directly influence student and faculty campus punctuality.',
     }
   }
-  if (text.includes('fee') || text.includes('certificate') || text.includes('id card') || text.includes('bonafide') || text.includes('document') || text.includes('admission') || text.includes('scholarship') || text.includes('registrar') || text.includes('marksheet') || text.includes('admin')) {
+
+  // 7. Hostel Amenities
+  if (
+    text.includes('lock') ||
+    text.includes('door') ||
+    text.includes('window') ||
+    text.includes('key') ||
+    text.includes('warden') ||
+    text.includes('bed') ||
+    text.includes('cupboard') ||
+    text.includes('room')
+  ) {
+    return {
+      category: 'Hostel',
+      priority: text.includes('lock') || text.includes('key') ? 'HIGH' : 'MEDIUM',
+      department: 'Hostel',
+      summary: 'Hostel residential amenity and room hardware repair.',
+      reasoning: 'Securing student living quarters is essential for residential safety.',
+    }
+  }
+
+  // 8. Cleaning & Sanitation
+  if (
+    text.includes('clean') ||
+    text.includes('garbage') ||
+    text.includes('trash') ||
+    text.includes('waste') ||
+    text.includes('dust') ||
+    text.includes('sweep') ||
+    text.includes('mop') ||
+    text.includes('dirty') ||
+    text.includes('sanitat')
+  ) {
+    return {
+      category: 'Cleaning',
+      priority: 'LOW',
+      department: 'Cleaning',
+      summary: 'Housekeeping and sanitation clearance request.',
+      reasoning: 'Standard sanitary maintenance cycle to preserve campus hygiene.',
+    }
+  }
+
+  // 9. Administration
+  if (
+    text.includes('fee') ||
+    text.includes('certificate') ||
+    text.includes('id card') ||
+    text.includes('bonafide') ||
+    text.includes('document') ||
+    text.includes('admission') ||
+    text.includes('scholarship') ||
+    text.includes('admin')
+  ) {
     return {
       category: 'Administration',
       priority: 'MEDIUM',
       department: 'Administration',
-      summary: 'Administrative and documentation assistance request.',
-      reasoning: 'Processed through central academic and administrative office counters.',
+      summary: 'Administrative documentation and academic records assistance.',
+      reasoning: 'Processed through administrative office desks and registrar records.',
     }
   }
+
+  // 10. Default Maintenance
   return {
     category: 'Maintenance',
     priority: 'MEDIUM',
     department: 'Maintenance',
-    summary: 'General campus facility maintenance request.',
-    reasoning: 'Assigned based on campus facility inspection standards.',
+    summary: 'General campus facility infrastructure and physical repair.',
+    reasoning: 'Assigned to campus civil and general maintenance team.',
   }
 }

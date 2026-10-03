@@ -158,8 +158,25 @@ export async function createServiceRequest(formData: FormData) {
 
   await Promise.all(postTasks)
 
+  // AI Smart Staff Auto-Assignment Engine
+  try {
+    const { autoAssignTicket } = await import('@/lib/ai/auto-assign')
+    await autoAssignTicket({
+      id: request.id,
+      category,
+      priority,
+      title,
+      description,
+    })
+  } catch (assignErr) {
+    console.warn('Auto-assignment notice:', assignErr)
+  }
+
   revalidatePath('/student/dashboard')
   revalidatePath('/student/requests')
+  revalidatePath('/staff/dashboard')
+  revalidatePath('/staff/requests')
+  revalidatePath('/admin/dashboard')
   
   redirect(`/student/requests/${request.id}`)
 }
