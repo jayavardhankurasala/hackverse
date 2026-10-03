@@ -200,13 +200,31 @@ export function getIntelligentFallback(params: { title: string; description: str
       reasoning: 'Securing room entry points is critical for residential student safety.',
     }
   }
-  if (text.includes('clean') || text.includes('garbage') || text.includes('trash') || text.includes('waste') || text.includes('dust')) {
+  if (text.includes('clean') || text.includes('garbage') || text.includes('trash') || text.includes('waste') || text.includes('dust') || text.includes('sweep') || text.includes('mop') || text.includes('dirty') || text.includes('sanitat')) {
     return {
       category: 'Cleaning',
       priority: 'LOW',
       department: 'Cleaning',
       summary: 'Sanitation and waste clearance request.',
       reasoning: 'Regular sanitation cycle maintains hygiene and campus standards.',
+    }
+  }
+  if (text.includes('bus') || text.includes('transport') || text.includes('route') || text.includes('driver') || text.includes('pickup') || text.includes('drop') || text.includes('vehicle') || text.includes('shuttle') || text.includes('commute')) {
+    return {
+      category: 'Transport',
+      priority: 'HIGH',
+      department: 'Transport',
+      summary: 'Campus transport routing and vehicle schedule assistance.',
+      reasoning: 'Transport punctuality directly impacts student and faculty academic attendance.',
+    }
+  }
+  if (text.includes('fee') || text.includes('certificate') || text.includes('id card') || text.includes('bonafide') || text.includes('document') || text.includes('admission') || text.includes('scholarship') || text.includes('registrar') || text.includes('marksheet') || text.includes('admin')) {
+    return {
+      category: 'Administration',
+      priority: 'MEDIUM',
+      department: 'Administration',
+      summary: 'Administrative and documentation assistance request.',
+      reasoning: 'Processed through central academic and administrative office counters.',
     }
   }
   return {

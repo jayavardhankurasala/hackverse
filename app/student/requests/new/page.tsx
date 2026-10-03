@@ -26,6 +26,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { requestAIAnalysis } from '@/actions/ai'
+import { createServiceRequest } from '@/actions/requests'
 import { AIRecommendation } from '@/lib/ai/gemini'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { getCurrentDemoUser, createDemoRequest } from '@/lib/demo/demo-service'
@@ -198,7 +199,45 @@ export default function NewRequestPage() {
     setError(null)
 
     try {
-      // Create request in clean demo service layer
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
+
+      if (user) {
+        const formData = new FormData()
+        formData.append('title', data.title)
+        formData.append('description', data.description)
+        formData.append('category', data.category)
+        formData.append('priority', data.priority)
+        formData.append('location', data.location)
+        formData.append('building', data.building)
+        formData.append('roomNumber', data.room || '')
+        if (selectedFile) {
+          formData.append('image', selectedFile)
+        }
+        if (aiResult) {
+          formData.append('aiCategory', aiResult.category)
+          formData.append('aiPriority', aiResult.priority)
+          formData.append('aiSummary', aiResult.summary)
+        }
+
+        try {
+          const res = await createServiceRequest(formData)
+          if ((res as any)?.error) {
+            setError((res as any).error)
+            setLoading(false)
+            return
+          }
+        } catch (redirectError: any) {
+          // Next.js redirect throws NEXT_REDIRECT which is expected when successful
+          if (redirectError?.digest?.startsWith('NEXT_REDIRECT')) {
+            throw redirectError
+          }
+        }
+      }
+
+      // Fallback or demo user mode
       const created = createDemoRequest({
         title: data.title,
         description: data.description,
@@ -208,14 +247,14 @@ export default function NewRequestPage() {
         building: data.building,
         room: data.room,
         imageUrl: filePreview || undefined,
-        studentId: currentUser.id,
-        studentName: currentUser.name,
+        studentId: currentUser?.id || 'student-1',
+        studentName: currentUser?.name || 'Student Submitter',
         aiRecommendation: aiResult
           ? {
               category: aiResult.category as ServiceCategory,
               priority: aiResult.priority as RequestPriority,
               department: aiResult.department,
-              suggestedStaff: aiResult.department === 'IT Support' ? 'Vikram Rao' : 'Suresh Kumar',
+              suggestedStaff: 'Domain Technician',
               summary: aiResult.summary,
               reasoning: aiResult.reasoning,
             }
@@ -227,6 +266,7 @@ export default function NewRequestPage() {
         ticketNumber: created.ticketNumber,
       })
     } catch (e: any) {
+      if (e?.digest?.startsWith('NEXT_REDIRECT')) throw e
       setError(e?.message || 'Failed to submit service request. Please try again.')
     } finally {
       setLoading(false)

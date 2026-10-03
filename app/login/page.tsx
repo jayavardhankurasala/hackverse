@@ -19,9 +19,18 @@ import {
   ShieldAlert,
   KeyRound,
 } from 'lucide-react'
-import { DEMO_USERS } from '@/lib/demo/mock-data'
-import { setCurrentDemoUser } from '@/lib/demo/demo-service'
 import { createClient } from '@/utils/supabase/client'
+
+const SPECIALIZED_STAFF = [
+  { domain: 'IT Support', email: 'it.staff@svec.edu.in' },
+  { domain: 'Electrical', email: 'electrical.staff@svec.edu.in' },
+  { domain: 'Plumbing', email: 'plumbing.staff@svec.edu.in' },
+  { domain: 'Maintenance', email: 'maintenance.staff@svec.edu.in' },
+  { domain: 'Hostel', email: 'hostel.staff@svec.edu.in' },
+  { domain: 'Transport', email: 'transport.staff@svec.edu.in' },
+  { domain: 'Cleaning', email: 'cleaning.staff@svec.edu.in' },
+  { domain: 'Administration', email: 'admin.staff@svec.edu.in' },
+]
 
 function LoginForm() {
   const searchParams = useSearchParams()
@@ -35,27 +44,6 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  
-  // Discrete Bottom-Right Demo Floating Widget
-  const [showDemoMenu, setShowDemoMenu] = useState(false)
-
-  const allUsers = Object.values(DEMO_USERS)
-  const studentUsers = allUsers.filter((u) => u.role === 'STUDENT')
-  const staffUsers = allUsers.filter((u) => u.role === 'STAFF')
-  const adminUsers = allUsers.filter((u) => u.role === 'ADMIN')
-
-  const handleLaunchDemo = (userId: string) => {
-    const user = DEMO_USERS[userId]
-    if (!user) return
-    setCurrentDemoUser(user.id)
-    if (user.role === 'STUDENT') {
-      window.location.href = '/student/dashboard'
-    } else if (user.role === 'STAFF') {
-      window.location.href = '/staff/dashboard'
-    } else {
-      window.location.href = '/admin/dashboard'
-    }
-  }
 
   const switchTab = (tab: 'student' | 'staff' | 'admin') => {
     setActiveTab(tab)
@@ -63,8 +51,11 @@ function LoginForm() {
     if (tab === 'admin') {
       setEmail('admin@campus')
       setPassword('Vasavi@123')
+    } else if (tab === 'staff') {
+      setEmail('it.staff@svec.edu.in')
+      setPassword('Vasavi@123')
     } else {
-      if (email === 'admin@campus') setEmail('')
+      if (email.endsWith('@svec.edu.in') || email === 'admin@campus') setEmail('')
       if (password === 'Vasavi@123') setPassword('')
     }
   }
@@ -327,6 +318,37 @@ function LoginForm() {
                 </div>
               </div>
 
+              {activeTab === 'staff' && (
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Campus Domain Accounts (8 Specializations):
+                    </span>
+                    <span className="text-[10px] text-blue-600 font-semibold font-mono">Vasavi@123</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {SPECIALIZED_STAFF.map((s) => (
+                      <button
+                        key={s.domain}
+                        type="button"
+                        onClick={() => {
+                          setEmail(s.email)
+                          setPassword('Vasavi@123')
+                        }}
+                        className={`text-left px-2 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer flex items-center justify-between ${
+                          email === s.email
+                            ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="truncate">{s.domain}</span>
+                        <span className="text-[10px] text-blue-600 font-mono shrink-0 ml-1">Use</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -387,76 +409,6 @@ function LoginForm() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Discrete Bottom-Right Floating Demo Mode Button strictly placed in corner */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          type="button"
-          onClick={() => setShowDemoMenu(!showDemoMenu)}
-          className="px-3 py-2 bg-slate-900/90 hover:bg-slate-900 text-white rounded-full text-xs font-medium shadow-lg backdrop-blur-sm border border-slate-700 flex items-center space-x-1.5 transition-all hover:scale-105 cursor-pointer"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Demo Personas</span>
-        </button>
-
-        {showDemoMenu && (
-          <div className="absolute bottom-12 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 text-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                Instant Demo Access
-              </span>
-              <button
-                onClick={() => setShowDemoMenu(false)}
-                className="text-[11px] text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-500 leading-tight">
-              One-click testing for evaluators without credentials:
-            </p>
-
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              <div className="text-[10px] font-bold uppercase text-slate-400 px-1 pt-1">Students</div>
-              {studentUsers.slice(0, 2).map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => handleLaunchDemo(u.id)}
-                  className="w-full text-left p-2 rounded-lg hover:bg-emerald-50 text-xs flex items-center justify-between border border-transparent hover:border-emerald-200 transition"
-                >
-                  <span className="font-semibold text-slate-800">{u.name}</span>
-                  <span className="text-[10px] text-emerald-600 font-mono">{u.hostel}</span>
-                </button>
-              ))}
-
-              <div className="text-[10px] font-bold uppercase text-slate-400 px-1 pt-2">Technicians</div>
-              {staffUsers.slice(0, 2).map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => handleLaunchDemo(u.id)}
-                  className="w-full text-left p-2 rounded-lg hover:bg-blue-50 text-xs flex items-center justify-between border border-transparent hover:border-blue-200 transition"
-                >
-                  <span className="font-semibold text-slate-800">{u.name}</span>
-                  <span className="text-[10px] text-blue-600 font-mono">{u.department}</span>
-                </button>
-              ))}
-
-              <div className="text-[10px] font-bold uppercase text-slate-400 px-1 pt-2">Administrators</div>
-              {adminUsers.slice(0, 1).map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => handleLaunchDemo(u.id)}
-                  className="w-full text-left p-2 rounded-lg hover:bg-purple-50 text-xs flex items-center justify-between border border-transparent hover:border-purple-200 transition"
-                >
-                  <span className="font-semibold text-slate-800">{u.name}</span>
-                  <span className="text-[10px] text-purple-600 font-bold">Admin</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

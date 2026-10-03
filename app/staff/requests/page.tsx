@@ -63,7 +63,24 @@ export default function StaffRequestsPage() {
 
         const profile = profileRes.data
         const dbRequests = requestsRes.data
-        const departmentName = profile?.departments?.name || profile?.department_id || 'IT Support'
+
+        const DEPT_ID_TO_NAME: Record<string, string> = {
+          '7bf9e2dc-0b38-4e9e-bcb5-2c2d6b05efde': 'IT Support',
+          '52b9246c-15a1-4107-b8b3-a379cf005331': 'Electrical',
+          '302a444b-8cf1-44de-9be7-1f245455a180': 'Plumbing',
+          'bb0efb4b-65fb-415a-8f0f-65c3873d56fb': 'Maintenance',
+          'a8ba437f-77a6-4ef3-9ae3-0d97fde6fbfe': 'Hostel',
+          '5e85b851-d564-4d18-bc05-9a602477cca8': 'Transport',
+          '3cf78ab1-d347-4009-b384-70178b4c948b': 'Cleaning',
+          '5c077125-0603-469b-a93d-538639045c2f': 'Administration',
+        }
+
+        const deptId = profile?.department_id || user.user_metadata?.department_id
+        const departmentName =
+          profile?.departments?.name ||
+          user.user_metadata?.department ||
+          (deptId ? DEPT_ID_TO_NAME[deptId] : null) ||
+          'IT Support'
         const staffName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Staff Member'
 
         const staffObj: DemoUser = {

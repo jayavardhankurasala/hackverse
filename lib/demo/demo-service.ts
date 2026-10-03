@@ -349,27 +349,30 @@ export function createDemoRequest(data: {
   studentName: string
   aiRecommendation?: DemoRequest['aiRecommendation']
 }): DemoRequest {
-  const all = getDemoRequests()
-  let nextNum = 1000 + all.length + 1
-  while (all.some((r: DemoRequest) => r.ticketNumber === `CR-${nextNum}`)) {
-    nextNum++
-  }
-  const ticketNumber = `CR-${nextNum}`
-  const id = `req-${nextNum}-${Date.now().toString().slice(-4)}`
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const year = String(now.getFullYear())
+  const datePrefix = `${day}${month}${year}`
 
-  // Intelligent Staff Recommendation based on category
-  let defaultStaff = 'Vikram Rao'
-  let defaultDept = 'IT Support'
-  if (data.category === 'Electrical') {
-    defaultStaff = 'Suresh Kumar'
-    defaultDept = 'Electrical'
-  } else if (data.category === 'Plumbing' || data.category === 'Hostel' || data.category === 'Cleaning') {
-    defaultStaff = 'Anjali Devi'
-    defaultDept = 'Hostel'
-  } else if (data.category === 'Maintenance') {
-    defaultStaff = 'Suresh Kumar'
-    defaultDept = 'Maintenance'
+  const all = getDemoRequests()
+  let seq = 1
+  while (all.some((r: DemoRequest) => r.ticketNumber === `${datePrefix}-${seq}`)) {
+    seq++
   }
+  const ticketNumber = `${datePrefix}-${seq}`
+  const id = `req-${ticketNumber}-${Date.now().toString().slice(-4)}`
+
+  // Strict 1-to-1 Domain Mapping across the 8 Specialized Campus Domains
+  const defaultDept = data.category
+  let defaultStaff = 'Vikram Rao'
+  if (data.category === 'Electrical') defaultStaff = 'Suresh Kumar'
+  else if (data.category === 'Plumbing') defaultStaff = 'Ramesh Naidu'
+  else if (data.category === 'Maintenance') defaultStaff = 'K. Prasad'
+  else if (data.category === 'Hostel') defaultStaff = 'Anjali Devi'
+  else if (data.category === 'Transport') defaultStaff = 'M. Venkat'
+  else if (data.category === 'Cleaning') defaultStaff = 'Lakshmi Bai'
+  else if (data.category === 'Administration') defaultStaff = 'G. Satyanarayana'
 
   const newReq: DemoRequest = {
     id,

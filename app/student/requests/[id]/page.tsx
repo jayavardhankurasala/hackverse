@@ -56,16 +56,7 @@ export default function StudentRequestDetailPage({
   const [ratingSubmitted, setRatingSubmitted] = useState(false)
 
   const loadTicket = async () => {
-    let r = getDemoRequestById(requestId)
-    if (r) {
-      setRequest(r)
-      setComments(getDemoComments(r.id))
-      setLogs(getDemoLogs(r.id))
-      setLoading(false)
-      return
-    }
-
-    // Try fetching live from Supabase
+    // 1. Try fetching live from Supabase first
     try {
       const { createClient } = await import('@/utils/supabase/client')
       const supabase = createClient()
@@ -76,6 +67,20 @@ export default function StudentRequestDetailPage({
         .maybeSingle()
 
       if (dbReq) {
+        let studentName = 'Student Submitter'
+        let studentRoll = ''
+        if (dbReq.created_by) {
+          const { data: creatorProfile } = await supabase
+            .from('profiles')
+            .select('full_name, roll_number, student_id')
+            .eq('user_id', dbReq.created_by)
+            .maybeSingle()
+          if (creatorProfile) {
+            studentName = creatorProfile.full_name || 'Student Submitter'
+            studentRoll = creatorProfile.roll_number || creatorProfile.student_id || ''
+          }
+        }
+
         const mapped: DemoRequest = {
           id: dbReq.id,
           ticketNumber: dbReq.ticket_number,
@@ -88,7 +93,7 @@ export default function StudentRequestDetailPage({
           building: dbReq.building || 'Campus',
           room: dbReq.room_number || '',
           studentId: dbReq.created_by,
-          studentName: 'Student',
+          studentName: studentRoll ? `${studentName} (${studentRoll})` : studentName,
           department: dbReq.category || 'General',
           createdAt: dbReq.created_at,
           updatedAt: dbReq.updated_at,
@@ -98,9 +103,21 @@ export default function StudentRequestDetailPage({
         setRequest(mapped)
         setComments(getDemoComments(mapped.id))
         setLogs(getDemoLogs(mapped.id))
+        setLoading(false)
+        return
       }
     } catch (err) {
       console.warn('Supabase ticket lookup notice:', err)
+    }
+
+    // 2. Demo fallback
+    const r = getDemoRequestById(requestId)
+    if (r) {
+      setRequest(r)
+      setComments(getDemoComments(r.id))
+      setLogs(getDemoLogs(r.id))
+      setLoading(false)
+      return
     }
 
     setLoading(false)

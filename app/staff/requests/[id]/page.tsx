@@ -62,7 +62,62 @@ export default function StaffRequestDetailPage({
   const [commentText, setCommentText] = useState('')
   const [isPostingComment, setIsPostingComment] = useState(false)
 
-  const loadTicket = () => {
+  const loadTicket = async () => {
+    // 1. Try fetching live from Supabase first
+    try {
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data: dbReq } = await supabase
+        .from('service_requests')
+        .select('*')
+        .or(`id.eq.${requestId},ticket_number.eq.${requestId}`)
+        .maybeSingle()
+
+      if (dbReq) {
+        let studentName = 'Student Submitter'
+        let studentRoll = ''
+        if (dbReq.created_by) {
+          const { data: creatorProfile } = await supabase
+            .from('profiles')
+            .select('full_name, roll_number, student_id')
+            .eq('user_id', dbReq.created_by)
+            .maybeSingle()
+          if (creatorProfile) {
+            studentName = creatorProfile.full_name || 'Student Submitter'
+            studentRoll = creatorProfile.roll_number || creatorProfile.student_id || ''
+          }
+        }
+
+        const mapped: DemoRequest = {
+          id: dbReq.id,
+          ticketNumber: dbReq.ticket_number,
+          title: dbReq.title,
+          description: dbReq.description,
+          category: dbReq.category as any,
+          priority: dbReq.priority as any,
+          status: dbReq.status || 'SUBMITTED',
+          location: dbReq.location || '',
+          building: dbReq.building || 'Campus',
+          room: dbReq.room_number || '',
+          studentId: dbReq.created_by,
+          studentName: studentRoll ? `${studentName} (${studentRoll})` : studentName,
+          department: dbReq.category || 'General',
+          createdAt: dbReq.created_at,
+          updatedAt: dbReq.updated_at,
+          resolutionNote: dbReq.resolution_note || undefined,
+          resolutionImageUrl: dbReq.resolution_attachment_url || undefined,
+        }
+        setRequest(mapped)
+        setComments(getDemoComments(mapped.id))
+        setLogs(getDemoLogs(mapped.id))
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      console.warn('Staff Supabase ticket lookup notice:', err)
+    }
+
+    // 2. Demo fallback
     const r = getDemoRequestById(requestId)
     if (r) {
       setRequest(r)
