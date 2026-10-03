@@ -8,6 +8,8 @@ export async function requestAIAnalysis(params: {
   location?: string
   currentCategory?: string
   currentPriority?: string
+  attachmentName?: string
+  attachmentType?: string
 }): Promise<{ success: boolean; data?: AIRecommendation; error?: string }> {
   if (!params.title || params.title.trim().length < 3) {
     return { success: false, error: 'Please enter a title of at least 3 characters before analyzing with AI.' }

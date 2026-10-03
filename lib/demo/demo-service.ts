@@ -421,6 +421,13 @@ export function createDemoRequest(data: {
   // Append initial activity logs
   addDemoLog(id, `Request submitted by ${data.studentName}`, data.studentName)
   addDemoLog(id, `AI Auto-Assignment: Assigned to ${defaultStaff} (${defaultDept}) based on workload`, 'System AI')
+  if (data.priority === 'CRITICAL') {
+    addDemoLog(
+      id,
+      `🚨 CRITICAL HAZARD DISPATCH: High-priority SMS & WhatsApp webhook triggered to ${defaultStaff} for immediate intervention.`,
+      'Emergency Dispatch System'
+    )
+  }
 
   // Asynchronously sync new ticket to Supabase database
   if (isClient()) {

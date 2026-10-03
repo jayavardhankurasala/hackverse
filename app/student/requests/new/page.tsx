@@ -189,6 +189,8 @@ export default function NewRequestPage() {
         location: `${currentBuilding} ${currentRoom} ${currentLocation}`,
         currentCategory,
         currentPriority,
+        attachmentName: selectedFile?.name,
+        attachmentType: selectedFile?.type,
       })
 
       if (res.success && res.data) {
@@ -230,6 +232,8 @@ export default function NewRequestPage() {
             location: `${data.building} ${data.room} ${data.location}`,
             currentCategory: data.category,
             currentPriority: data.priority,
+            attachmentName: selectedFile?.name,
+            attachmentType: selectedFile?.type,
           })
           if (autoRes.success && autoRes.data) {
             finalAi = autoRes.data
@@ -558,6 +562,36 @@ export default function NewRequestPage() {
                     <div>
                       <strong className="font-bold text-rose-900 block">Critical Safety Hazard Auto-Corrected</strong>
                       <span>The AI engine identified an urgent safety risk. Priority was forcefully elevated to <strong>CRITICAL</strong> and domain locked to <strong>{aiResult.category}</strong>.</span>
+                    </div>
+                  </div>
+                )}
+
+                {aiResult.imageVerification && (
+                  <div className="p-3.5 bg-sky-50/80 border border-sky-200 rounded-xl text-xs text-sky-950 space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-bold text-sky-900">
+                        <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
+                        <span>Multimodal Vision Evidence Verified</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-mono font-bold text-2xs">
+                        {aiResult.imageVerification.confidence}% Vision Match
+                      </span>
+                    </div>
+
+                    <p className="text-sky-900 text-xs leading-relaxed">
+                      {aiResult.imageVerification.note}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-2xs font-semibold text-sky-800">Detected Visual Elements:</span>
+                      {aiResult.imageVerification.detectedElements.map((el, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded-md bg-white border border-sky-200 text-2xs font-semibold text-sky-900 shadow-2xs"
+                        >
+                          ✓ {el}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 )}

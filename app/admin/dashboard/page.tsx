@@ -21,12 +21,16 @@ import {
   UserCheck,
   Eye,
   Filter,
+  Flame,
+  Radio,
+  PhoneCall,
 } from 'lucide-react'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { StatCard } from '@/components/ui/StatCard'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { AnalyticsCharts } from '@/components/admin/AnalyticsCharts'
+import { CampusHeatmap } from '@/components/admin/CampusHeatmap'
 import {
   getDemoRequests,
   getPriorityQueue,
@@ -43,10 +47,12 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('Good day')
 
-  // Filters for bottom table
+  // Filters for bottom table and heatmap
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [priorityFilter, setPriorityFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [selectedBlock, setSelectedBlock] = useState<string | null>(null)
 
   // One-click assign state feedback
   const [justAssignedId, setJustAssignedId] = useState<string | null>(null)
@@ -127,6 +133,10 @@ export default function AdminDashboardPage() {
     { date: 'Today', requests: requests.length },
   ]
 
+  const activeCriticalTickets = requests.filter(
+    (r) => r.priority === 'CRITICAL' && r.status !== 'RESOLVED' && r.status !== 'CLOSED'
+  )
+
   // Filtered requests for main table
   const filteredRequests = requests.filter((req) => {
     const matchesSearch =
@@ -136,9 +146,25 @@ export default function AdminDashboardPage() {
       req.location?.toLowerCase().includes(search.toLowerCase())
 
     const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter
+    const matchesPriority = priorityFilter === 'ALL' || req.priority === priorityFilter
     const matchesCategory = categoryFilter === 'ALL' || req.category === categoryFilter
 
-    return matchesSearch && matchesStatus && matchesCategory
+    const matchesBlock = !selectedBlock || (() => {
+      const text = `${req.building || ''} ${req.location || ''} ${req.category || ''} ${req.title || ''}`.toLowerCase()
+      const target = selectedBlock.toLowerCase()
+      if (target.includes('block b')) return text.includes('block b') || text.includes('hb-b')
+      if (target.includes('block a')) return text.includes('block a') || text.includes('hb-a')
+      if (target.includes('block c')) return text.includes('block c') || text.includes('hb-c')
+      if (target.includes('academic block 1')) return text.includes('academic block 1') || text.includes('ab-1') || text.includes('cad lab') || text.includes('cse')
+      if (target.includes('academic block 2')) return text.includes('academic block 2') || text.includes('ab-2') || text.includes('ece') || text.includes('eee') || text.includes('mechanical')
+      if (target.includes('library')) return text.includes('library')
+      if (target.includes('canteen')) return text.includes('canteen') || text.includes('food court')
+      if (target.includes('transport')) return text.includes('bus') || text.includes('transport') || text.includes('shuttle')
+      if (target.includes('administrative')) return text.includes('admin') || text.includes('exam')
+      return true
+    })()
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesBlock
   })
 
   // Unassigned or urgent requests waiting in Priority Queue
@@ -177,6 +203,60 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Real-time Emergency Critical Hazard Broadcast Banner */}
+      {activeCriticalTickets.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl bg-linear-to-r from-rose-700 via-red-600 to-amber-700 text-white p-5 sm:p-6 shadow-md border border-red-500/40 animate-in fade-in duration-300">
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 ring-2 ring-white/40 shadow-inner">
+                <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xs font-extrabold uppercase tracking-wider bg-white text-rose-700 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                    LIVE EMERGENCY BROADCAST
+                  </span>
+                  <span className="text-xs text-rose-100 font-semibold">
+                    {activeCriticalTickets.length} Critical Hazard Ticket{activeCriticalTickets.length > 1 ? 's' : ''} Active
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold tracking-tight text-white">
+                  {activeCriticalTickets[0].title}
+                </h3>
+                <div className="text-xs text-red-100 flex items-center gap-2 flex-wrap pt-0.5">
+                  <span className="font-semibold">📍 {activeCriticalTickets[0].building || activeCriticalTickets[0].location}</span>
+                  <span>•</span>
+                  <span>Domain: <strong>{activeCriticalTickets[0].category}</strong></span>
+                  <span>•</span>
+                  <span className="bg-black/30 px-2 py-0.5 rounded text-2xs font-mono flex items-center gap-1">
+                    <PhoneCall className="w-3 h-3 text-emerald-300" />
+                    Dispatch: SMS & WhatsApp Webhook to {activeCriticalTickets[0].assignedStaffName || 'Specialist Technician'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setPriorityFilter('CRITICAL')
+                  setSelectedBlock(null)
+                  const el = document.getElementById('all-requests-table')
+                  el?.scrollIntoView({ behavior: 'smooth' })
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-rose-800 hover:bg-rose-50 transition shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Inspect All {activeCriticalTickets.length} Hazards</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5 Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -220,6 +300,19 @@ export default function AdminDashboardPage() {
           color="indigo"
         />
       </div>
+
+      {/* Interactive Campus Facilities Heatmap */}
+      <CampusHeatmap
+        requests={requests}
+        selectedBlock={selectedBlock}
+        onSelectBlock={(block) => {
+          setSelectedBlock(block)
+          if (block) {
+            const el = document.getElementById('all-requests-table')
+            el?.scrollIntoView({ behavior: 'smooth' })
+          }
+        }}
+      />
 
       {/* AI PRIORITY QUEUE & AUTOMATIC STAFF RECOMMENDATIONS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -345,12 +438,12 @@ export default function AdminDashboardPage() {
       />
 
       {/* Admin Full Request Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+      <div id="all-requests-table" className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden scroll-mt-6">
         <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">All Campus Service Tickets</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Live operational register with multi-attribute filtering
+              Live operational register with multi-attribute filtering & campus block correlation
             </p>
           </div>
           <Link
@@ -364,7 +457,7 @@ export default function AdminDashboardPage() {
         {/* Filters */}
         <div className="p-4 bg-slate-50/50 border-b border-slate-200">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            <div className="sm:col-span-6 relative">
+            <div className="sm:col-span-4 relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                 <Search className="w-4 h-4" />
               </div>
@@ -377,7 +470,7 @@ export default function AdminDashboardPage() {
               />
             </div>
 
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -395,18 +488,35 @@ export default function AdminDashboardPage() {
 
             <div className="sm:col-span-3">
               <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                aria-label="Filter by Priority"
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">All Priorities</option>
+                <option value="CRITICAL">Critical Hazard</option>
+                <option value="HIGH">High Priority</option>
+                <option value="MEDIUM">Medium Priority</option>
+                <option value="LOW">Low Priority</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 aria-label="Filter by Category"
                 className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="ALL">All Categories</option>
+                <option value="ALL">All 8 Departments</option>
                 <option value="IT Support">IT Support</option>
                 <option value="Electrical">Electrical</option>
                 <option value="Plumbing">Plumbing</option>
                 <option value="Maintenance">Maintenance</option>
                 <option value="Hostel">Hostel</option>
+                <option value="Transport">Transport</option>
                 <option value="Cleaning">Cleaning</option>
+                <option value="Administration">Administration</option>
               </select>
             </div>
           </div>

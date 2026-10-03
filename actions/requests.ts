@@ -158,16 +158,37 @@ export async function createServiceRequest(formData: FormData) {
 
   await Promise.all(postTasks)
 
-  // AI Smart Staff Auto-Assignment Engine
+  // AI Smart Staff Auto-Assignment Engine & Critical Hazard Alerts
   try {
     const { autoAssignTicket } = await import('@/lib/ai/auto-assign')
-    await autoAssignTicket({
+    const assignResult = await autoAssignTicket({
       id: request.id,
       category,
       priority,
       title,
       description,
     })
+
+    // Real-Time Critical Hazard Alert (SMS / WhatsApp Webhook Simulation)
+    if (priority === 'CRITICAL' || aiPriority === 'CRITICAL') {
+      try {
+        const { sendCriticalHazardAlert } = await import('@/lib/notifications/alert')
+        await sendCriticalHazardAlert({
+          ticketId: request.id,
+          ticketNumber,
+          title,
+          description,
+          category,
+          building,
+          room: roomNumber,
+          priority: 'CRITICAL',
+          assignedStaffName: assignResult?.staffName,
+          assignedStaffEmail: assignResult?.staffEmail,
+        })
+      } catch (alertErr) {
+        console.warn('Critical hazard alert dispatch notice:', alertErr)
+      }
+    }
   } catch (assignErr) {
     console.warn('Auto-assignment notice:', assignErr)
   }
