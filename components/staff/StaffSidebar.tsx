@@ -6,23 +6,26 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   ClipboardList,
-  Wrench,
   User,
-  Bell,
   LogOut,
-  Menu,
   X,
   ChevronRight,
-  ShieldCheck,
-  CheckCircle2,
+  Wrench,
 } from 'lucide-react'
 import { logout } from '@/actions/auth'
-import { UserNavChip } from '@/components/shared/UserNavChip'
-import { NotificationBell } from '@/components/notifications/NotificationBell'
 
-export function StaffSidebar() {
+export function StaffSidebar({
+  mobileOpen: externalMobileOpen,
+  setMobileOpen: externalSetMobileOpen,
+}: {
+  mobileOpen?: boolean
+  setMobileOpen?: (open: boolean) => void
+}) {
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+
+  const isMobileOpen = externalMobileOpen !== undefined ? externalMobileOpen : internalOpen
+  const setIsMobileOpen = externalSetMobileOpen || setInternalOpen
 
   const navItems = [
     {
@@ -59,7 +62,7 @@ export function StaffSidebar() {
       <div className="p-5 border-b border-slate-100 flex items-center justify-between">
         <Link
           href="/staff/dashboard"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setIsMobileOpen(false)}
           className="flex items-center space-x-3 group"
         >
           <img
@@ -80,14 +83,12 @@ export function StaffSidebar() {
             </div>
           </div>
         </Link>
-        {mobileOpen && (
-          <button
-            onClick={() => setMobileOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <button
+          onClick={() => setIsMobileOpen(false)}
+          className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation Links */}
@@ -101,7 +102,7 @@ export function StaffSidebar() {
             <Link
               key={item.name}
               href={item.href}
-              onClick={() => setMobileOpen(false)}
+              onClick={() => setIsMobileOpen(false)}
               className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
                 item.active
                   ? 'bg-blue-50 text-blue-800 font-bold border border-blue-200/80 shadow-2xs'
@@ -120,26 +121,10 @@ export function StaffSidebar() {
             </Link>
           )
         })}
-
-        {/* Activity & Notifications Section */}
-        <div className="pt-4 px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          Alerts & Activity
-        </div>
-        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-xs font-medium text-slate-700">
-            <Bell className="w-4 h-4 text-slate-400" />
-            <span>Alerts</span>
-          </div>
-          <NotificationBell />
-        </div>
       </nav>
 
-      {/* Bottom Pinned User Profile & Logout */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
-        <div className="w-full">
-          <UserNavChip expectedRole="staff" />
-        </div>
-
+      {/* Bottom Pinned Logout Button */}
+      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition border border-transparent hover:border-rose-100 cursor-pointer"
@@ -153,32 +138,12 @@ export function StaffSidebar() {
 
   return (
     <>
-      {/* Mobile Top Bar */}
-      <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200/90 px-4 h-14 flex items-center justify-between shadow-2xs">
-        <Link href="/staff/dashboard" className="flex items-center space-x-2">
-          <img src="/svec-logo.png" alt="SVEC Logo" className="w-8 h-8 object-contain" />
-          <span className="font-extrabold text-slate-900 tracking-tight text-sm">
-            SVEC<span className="text-blue-600">helpdesk</span>
-          </span>
-        </Link>
-        <div className="flex items-center space-x-2">
-          <NotificationBell />
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
-            aria-label="Open staff navigation menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
       {/* Mobile Drawer Overlay */}
-      {mobileOpen && (
+      {isMobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setIsMobileOpen(false)}
           />
           <div className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
             {sidebarContent}

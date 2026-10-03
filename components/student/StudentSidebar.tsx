@@ -8,21 +8,25 @@ import {
   ClipboardList,
   PlusCircle,
   User,
-  Bell,
   LogOut,
-  Menu,
   X,
-  Sparkles,
   ChevronRight,
   ShieldCheck,
 } from 'lucide-react'
 import { logout } from '@/actions/auth'
-import { UserNavChip } from '@/components/shared/UserNavChip'
-import { NotificationBell } from '@/components/notifications/NotificationBell'
 
-export function StudentSidebar() {
+export function StudentSidebar({
+  mobileOpen: externalMobileOpen,
+  setMobileOpen: externalSetMobileOpen,
+}: {
+  mobileOpen?: boolean
+  setMobileOpen?: (open: boolean) => void
+}) {
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+
+  const isMobileOpen = externalMobileOpen !== undefined ? externalMobileOpen : internalOpen
+  const setIsMobileOpen = externalSetMobileOpen || setInternalOpen
 
   const navItems = [
     {
@@ -30,28 +34,24 @@ export function StudentSidebar() {
       href: '/student/dashboard',
       icon: LayoutDashboard,
       active: pathname === '/student/dashboard',
-      badge: null,
     },
     {
       name: 'My Requests',
       href: '/student/requests',
       icon: ClipboardList,
       active: pathname.startsWith('/student/requests') && pathname !== '/student/requests/new',
-      badge: null,
     },
     {
       name: 'Report a Problem',
       href: '/student/requests/new',
       icon: PlusCircle,
       active: pathname === '/student/requests/new',
-      highlight: true,
     },
     {
       name: 'Profile & Details',
       href: '/student/profile',
       icon: User,
       active: pathname === '/student/profile',
-      badge: null,
     },
   ]
 
@@ -69,7 +69,7 @@ export function StudentSidebar() {
       <div className="p-5 border-b border-slate-100 flex items-center justify-between">
         <Link
           href="/student/dashboard"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setIsMobileOpen(false)}
           className="flex items-center space-x-3 group"
         >
           <img
@@ -90,21 +90,19 @@ export function StudentSidebar() {
             </div>
           </div>
         </Link>
-        {mobileOpen && (
-          <button
-            onClick={() => setMobileOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <button
+          onClick={() => setIsMobileOpen(false)}
+          className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Primary Action Button */}
       <div className="px-4 pt-5 pb-2">
         <Link
           href="/student/requests/new"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setIsMobileOpen(false)}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all active:scale-98"
         >
           <PlusCircle className="w-4 h-4 text-emerald-100" />
@@ -123,7 +121,7 @@ export function StudentSidebar() {
             <Link
               key={item.name}
               href={item.href}
-              onClick={() => setMobileOpen(false)}
+              onClick={() => setIsMobileOpen(false)}
               className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
                 item.active
                   ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200/80 shadow-2xs'
@@ -142,26 +140,10 @@ export function StudentSidebar() {
             </Link>
           )
         })}
-
-        {/* Activity & Notifications Section */}
-        <div className="pt-4 px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          Updates & Activity
-        </div>
-        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-xs font-medium text-slate-700">
-            <Bell className="w-4 h-4 text-slate-400" />
-            <span>Notifications</span>
-          </div>
-          <NotificationBell />
-        </div>
       </nav>
 
-      {/* Bottom Pinned User Profile & Logout */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
-        <div className="w-full">
-          <UserNavChip expectedRole="student" />
-        </div>
-
+      {/* Bottom Pinned Logout Button */}
+      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition border border-transparent hover:border-rose-100 cursor-pointer"
@@ -175,32 +157,12 @@ export function StudentSidebar() {
 
   return (
     <>
-      {/* Mobile Top Bar */}
-      <div className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200/90 px-4 h-14 flex items-center justify-between shadow-2xs">
-        <Link href="/student/dashboard" className="flex items-center space-x-2">
-          <img src="/svec-logo.png" alt="SVEC Logo" className="w-8 h-8 object-contain" />
-          <span className="font-extrabold text-slate-900 tracking-tight text-sm">
-            SVEC<span className="text-emerald-600">helpdesk</span>
-          </span>
-        </Link>
-        <div className="flex items-center space-x-2">
-          <NotificationBell />
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
-            aria-label="Open navigation menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
       {/* Mobile Drawer Overlay */}
-      {mobileOpen && (
+      {isMobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setIsMobileOpen(false)}
           />
           <div className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
             {sidebarContent}
