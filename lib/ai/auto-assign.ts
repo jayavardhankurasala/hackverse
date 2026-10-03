@@ -92,6 +92,8 @@ export async function autoAssignTicket(ticket: {
   const targetCategory = ticket.category || 'IT Support'
   const baseline = BASELINE_STAFF_DIRECTORY[targetCategory] || BASELINE_STAFF_DIRECTORY['IT Support']
 
+  let departmentId: string | null = null
+
   try {
     const admin = createAdminClient()
 
@@ -102,7 +104,7 @@ export async function autoAssignTicket(ticket: {
       .ilike('name', targetCategory.trim())
       .maybeSingle()
 
-    const departmentId = dept?.id || null
+    departmentId = dept?.id || null
 
     // 2. Fetch candidate staff members in this domain
     let staffCandidates: { user_id: string; full_name: string; email: string }[] = []
@@ -194,7 +196,7 @@ export async function autoAssignTicket(ticket: {
         assigned_at: new Date().toISOString(),
         status: 'ASSIGNED',
         department_id: departmentId || undefined,
-        ai_department: targetCategory,
+        ai_department: departmentId || undefined,
       })
       .eq('id', ticket.id)
 
@@ -228,7 +230,8 @@ export async function autoAssignTicket(ticket: {
           assigned_to: baseline.fallbackUserId,
           assigned_at: new Date().toISOString(),
           status: 'ASSIGNED',
-          ai_department: targetCategory,
+          department_id: departmentId || undefined,
+          ai_department: departmentId || undefined,
         })
         .eq('id', ticket.id)
     } catch {}
