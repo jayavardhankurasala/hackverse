@@ -64,8 +64,8 @@ export default function LandingPage() {
     },
     {
       step: '02',
-      title: 'Google Gemini AI Triage',
-      desc: 'AI instantly analyzes incident text, predicts urgency (Critical/High), sets SLA, and routes to the specialist.',
+      title: 'Groq AI Llama-3.3 Triage',
+      desc: 'Groq AI instantly analyzes incident text, predicts urgency (Critical/High), sets SLA, and routes to the specialist.',
       icon: Sparkles,
     },
     {
@@ -269,7 +269,7 @@ export default function LandingPage() {
               </p>
               <div className="pt-2 border-t border-slate-200 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4" />
-                <span>SVEC Solution: Gemini AI Instant Severity Triage</span>
+                <span>SVEC Solution: Groq AI Instant Severity Triage</span>
               </div>
             </div>
 

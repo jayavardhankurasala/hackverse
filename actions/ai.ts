@@ -1,6 +1,6 @@
 'use server'
 
-import { analyzeRequestText, AIRecommendation } from '@/lib/ai/gemini'
+import { analyzeRequestText, AIRecommendation } from '@/lib/ai/groq'
 
 export async function requestAIAnalysis(params: {
   title: string

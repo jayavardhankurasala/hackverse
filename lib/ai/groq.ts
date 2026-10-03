@@ -1,5 +1,4 @@
 import Groq from 'groq-sdk'
-import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
 
 export const aiRecommendationSchema = z.object({
@@ -29,7 +28,7 @@ interface CacheEntry {
 }
 const aiCache = new Map<string, CacheEntry>()
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
-const AI_TIMEOUT_MS = 6000 // 6.0s max timeout
+const GROQ_TIMEOUT_MS = 6000 // 6.0s timeout to prevent UI lag
 
 function getCacheKey(params: { title: string; description: string; location?: string }): string {
   const norm = (s?: string) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
@@ -37,10 +36,8 @@ function getCacheKey(params: { title: string; description: string; location?: st
 }
 
 /**
- * Multi-Provider AI Triage Engine:
- * 1. Primary: Groq API (llama-3.3-70b-versatile) / xAI Grok (grok-beta)
- * 2. Secondary: Google Gemini 2.0 Flash
- * 3. Guaranteed Fallback: High-Accuracy Safety Hazard & Campus Domain Heuristic
+ * Unified Groq AI Engine for CampusDesk
+ * Uses Groq SDK with llama-3.3-70b-versatile and seamless safety/rate-limit fallback heuristics.
  */
 export async function analyzeRequestText(params: {
   title: string
@@ -102,19 +99,13 @@ Return ONLY valid JSON matching this exact structure:
 }
 `
 
-  // --- PROVIDER 1: GROQ / xAI GROK API ---
-  const groqApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY
-  if (groqApiKey && !groqApiKey.includes('placeholder')) {
+  // --- GROQ SDK CALL ---
+  const apiKey = process.env.GROQ_API_KEY
+  if (apiKey && !apiKey.includes('placeholder')) {
     try {
-      const isXai = Boolean(process.env.GROK_API_KEY || process.env.XAI_API_KEY)
-      const groqClient = new Groq({
-        apiKey: groqApiKey,
-        baseURL: isXai ? 'https://api.x.ai/v1' : undefined,
-      })
+      const groq = new Groq({ apiKey })
 
-      const model = isXai ? 'grok-beta' : 'llama-3.3-70b-versatile'
-
-      const completionPromise = groqClient.chat.completions.create({
+      const completionPromise = groq.chat.completions.create({
         messages: [
           {
             role: 'system',
@@ -125,13 +116,13 @@ Return ONLY valid JSON matching this exact structure:
             content: prompt,
           },
         ],
-        model,
+        model: 'llama-3.3-70b-versatile',
         response_format: { type: 'json_object' },
         temperature: 0.1,
       })
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Groq/Grok API timeout')), AI_TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Groq API timeout')), GROQ_TIMEOUT_MS)
       )
 
       const response = await Promise.race([completionPromise, timeoutPromise])
@@ -147,52 +138,11 @@ Return ONLY valid JSON matching this exact structure:
         }
       }
     } catch (groqErr: any) {
-      console.warn('Groq/Grok AI engine notice (falling back to secondary):', groqErr?.message || groqErr)
+      console.warn('Groq AI API notice (rate limit or timeout, engaging keyword heuristic fallback):', groqErr?.message || groqErr)
     }
   }
 
-  // --- PROVIDER 2: GOOGLE GEMINI 2.0 FLASH ---
-  const geminiApiKey = process.env.GEMINI_API_KEY
-  if (geminiApiKey && !geminiApiKey.includes('placeholder')) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey })
-      const generatePromise = ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      })
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Gemini API timeout')), AI_TIMEOUT_MS)
-      )
-
-      const response = await Promise.race([generatePromise, timeoutPromise])
-      const responseText = response.text?.trim()
-
-      if (responseText) {
-        let parsedJson
-        try {
-          parsedJson = JSON.parse(responseText)
-        } catch {
-          const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim()
-          parsedJson = JSON.parse(cleanJson)
-        }
-
-        parsedJson = enforceSafetyGuards(params, parsedJson)
-        const validation = aiRecommendationSchema.safeParse(parsedJson)
-        if (validation.success) {
-          aiCache.set(cacheKey, { data: validation.data, timestamp: Date.now() })
-          return { success: true, data: validation.data }
-        }
-      }
-    } catch (geminiErr: any) {
-      console.warn('Gemini AI engine notice (engaging heuristic triage):', geminiErr?.message || geminiErr)
-    }
-  }
-
-  // --- PROVIDER 3: HIGH-ACCURACY SAFETY & DOMAIN HEURISTIC ENGINE ---
+  // --- GUARANTEED HEURISTIC FALLBACK ---
   const fallback = getIntelligentFallback(params)
   aiCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
   return {
@@ -256,7 +206,7 @@ function enforceSafetyGuards(
 }
 
 /**
- * Zero-latency heuristic triage fallback covering all 8 campus departments and safety conditions.
+ * High-accuracy keyword heuristic triage fallback covering all 8 campus departments and safety conditions.
  */
 export function getIntelligentFallback(params: {
   title: string

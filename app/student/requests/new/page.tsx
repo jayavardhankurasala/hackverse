@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { requestAIAnalysis } from '@/actions/ai'
 import { createServiceRequest } from '@/actions/requests'
-import { AIRecommendation } from '@/lib/ai/gemini'
+import { AIRecommendation } from '@/lib/ai/groq'
 import { PriorityBadge } from '@/components/ui/PriorityBadge'
 import { getCurrentDemoUser, createDemoRequest } from '@/lib/demo/demo-service'
 import { ServiceCategory, RequestPriority } from '@/lib/demo/types'
