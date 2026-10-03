@@ -181,7 +181,15 @@ export function isLocalDemoMode() {
 }
 
 export function getAllDemoUsers(): DemoUser[] {
-  return Object.values(DEMO_USERS)
+  const users = Object.values(DEMO_USERS)
+  const map = new Map<string, DemoUser>()
+  users.forEach((u) => {
+    const key = u.email ? u.email.toLowerCase() : u.id
+    if (!map.has(key)) {
+      map.set(key, u)
+    }
+  })
+  return Array.from(map.values())
 }
 
 export function getDemoStaffDomain(staffId: string): string {

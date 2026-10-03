@@ -26,9 +26,63 @@ export default function AdminStaffPage() {
   const [requests, setRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
 
-  const loadData = () => {
-    const all = getAllDemoUsers()
-    setStaffList(all.filter((u) => u.role === 'STAFF'))
+  const loadData = async () => {
+    const demoStaff = getAllDemoUsers().filter((u) => u.role === 'STAFF')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: dbProfiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'STAFF')
+
+      if (dbProfiles && dbProfiles.length > 0) {
+        const map = new Map<string, DemoUser>()
+        // Seed with the 8 specialized campus departments
+        demoStaff.forEach((s) => map.set(s.department || s.name, s))
+
+        dbProfiles.forEach((p: any) => {
+          const match = Array.from(map.values()).find(
+            (s) =>
+              s.email.toLowerCase() === p.email?.toLowerCase() ||
+              s.name.toLowerCase() === p.full_name?.toLowerCase() ||
+              p.full_name?.toLowerCase().includes((s.department || '').toLowerCase())
+          )
+          if (match) {
+            map.set(match.department || match.name, {
+              ...match,
+              id: p.user_id,
+              name: p.full_name || match.name,
+              email: p.email || match.email,
+            })
+          }
+        })
+
+        const order = [
+          'IT Support',
+          'Electrical',
+          'Plumbing',
+          'Maintenance',
+          'Hostel',
+          'Transport',
+          'Cleaning',
+          'Administration',
+        ]
+        const sorted = Array.from(map.values()).sort((a, b) => {
+          const idxA = order.indexOf(a.department || '')
+          const idxB = order.indexOf(b.department || '')
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB
+          if (idxA !== -1) return -1
+          if (idxB !== -1) return 1
+          return a.name.localeCompare(b.name)
+        })
+        setStaffList(sorted)
+      } else {
+        setStaffList(demoStaff)
+      }
+    } catch {
+      setStaffList(demoStaff)
+    }
     setRequests(getDemoRequests())
     setLoading(false)
   }
@@ -36,7 +90,9 @@ export default function AdminStaffPage() {
   useEffect(() => {
     loadData()
 
-    const handleUpdate = () => loadData()
+    const handleUpdate = () => {
+      loadData()
+    }
     window.addEventListener('demo-data-changed', handleUpdate)
     window.addEventListener('demo-user-changed', handleUpdate)
 
@@ -82,7 +138,11 @@ export default function AdminStaffPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {staffList.map((staff) => {
           const myReqs = requests.filter(
-            (r) => r.assignedStaffId === staff.id || r.assignedStaffName === staff.name
+            (r) =>
+              r.assignedStaffId === staff.id ||
+              r.assignedStaffName === staff.name ||
+              (staff.name && r.assignedStaffName?.toLowerCase().includes(staff.name.split(' ')[0].toLowerCase())) ||
+              (staff.department && r.category?.toLowerCase() === staff.department.toLowerCase())
           )
           const activeCount = myReqs.filter(
             (r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS'
