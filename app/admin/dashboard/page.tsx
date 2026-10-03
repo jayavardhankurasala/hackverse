@@ -34,12 +34,14 @@ import {
   getAllDemoUsers,
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
+import { getTimeGreeting } from '@/lib/utils/greeting'
 
 export default function AdminDashboardPage() {
   const [requests, setRequests] = useState<DemoRequest[]>([])
   const [priorityQueue, setPriorityQueue] = useState<DemoRequest[]>([])
   const [staffMembers, setStaffMembers] = useState<DemoUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [greeting, setGreeting] = useState('Good day')
 
   // Filters for bottom table
   const [search, setSearch] = useState('')
@@ -59,6 +61,7 @@ export default function AdminDashboardPage() {
   }
 
   useEffect(() => {
+    setGreeting(getTimeGreeting())
     loadData()
 
     const handleUpdate = () => loadData()
@@ -151,7 +154,7 @@ export default function AdminDashboardPage() {
             <span>Central Facilities Governance Console</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            Administration Dashboard
+            {greeting}, Administrator
           </h1>
           <p className="text-sm text-slate-600 font-normal">
             Campus-wide request oversight, AI dispatch recommendations, and resource analytics.

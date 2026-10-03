@@ -23,12 +23,18 @@ import { LoadingState } from '@/components/ui/LoadingState'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
 import { createClient } from '@/utils/supabase/client'
+import { getTimeGreeting } from '@/lib/utils/greeting'
 
 export default function StudentDashboard() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
   const [stats, setStats] = useState({ total: 0, pending: 0, inProgress: 0, resolved: 0 })
   const [recentRequests, setRecentRequests] = useState<DemoRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [greeting, setGreeting] = useState('Good day')
+
+  useEffect(() => {
+    setGreeting(getTimeGreeting())
+  }, [])
 
   const loadData = async () => {
     // 1. Check for real authenticated Supabase session
@@ -169,7 +175,7 @@ export default function StudentDashboard() {
             )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            Good morning, {currentUser?.name || firstName}
+            {greeting}, {currentUser?.name || firstName}
           </h1>
           <p className="text-sm text-slate-600 font-normal">
             Track your open service tickets, request updates, and log new campus issues.

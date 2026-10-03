@@ -39,6 +39,7 @@ import {
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser, ServiceCategory } from '@/lib/demo/types'
 import { createClient } from '@/utils/supabase/client'
+import { getTimeGreeting } from '@/lib/utils/greeting'
 
 const DOMAINS: string[] = [
   'IT Support',
@@ -54,6 +55,7 @@ export default function StaffDashboardPage() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)
   const [activeDomain, setActiveDomain] = useState<string>('IT Support')
   const [activeTab, setActiveTab] = useState<'my-assigned' | 'department-queue'>('my-assigned')
+  const [greeting, setGreeting] = useState('Good day')
 
   const [assignedRequests, setAssignedRequests] = useState<DemoRequest[]>([])
   const [deptRequests, setDeptRequests] = useState<DemoRequest[]>([])
@@ -190,6 +192,7 @@ export default function StaffDashboardPage() {
   }
 
   useEffect(() => {
+    setGreeting(getTimeGreeting())
     loadData()
 
     const handleUpdate = () => loadData()
@@ -280,10 +283,10 @@ export default function StaffDashboardPage() {
             <span>Field Technician Portal</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            My Assigned Requests
+            {greeting}, {currentUser?.name ? currentUser.name.split(' ')[0] : 'Technician'}
           </h1>
           <p className="text-sm text-slate-600 font-normal">
-            Technician: <strong className="text-slate-900">{currentUser.name}</strong> • Active Domain:{' '}
+            Assigned Queue • Active Domain:{' '}
             <span className="text-emerald-700 font-semibold">{activeDomain}</span>
           </p>
         </div>
