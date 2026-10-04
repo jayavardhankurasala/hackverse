@@ -18,7 +18,7 @@ import {
   Phone,
   BookOpen,
 } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DEMO_USERS } from '@/lib/demo/mock-data'
 import { StatCard } from '@/components/ui/StatCard'

@@ -65,7 +65,7 @@ export default function StaffRequestDetailPage({
   const loadTicket = async () => {
     // 1. Try fetching live from Supabase first
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data: dbReq } = await supabase
         .from('service_requests')

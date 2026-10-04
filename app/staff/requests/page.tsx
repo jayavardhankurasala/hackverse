@@ -28,7 +28,7 @@ import {
   getDemoStaffDomain,
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 export default function StaffRequestsPage() {
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null)

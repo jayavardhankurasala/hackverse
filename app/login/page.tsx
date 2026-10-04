@@ -19,7 +19,7 @@ import {
   ShieldAlert,
   KeyRound,
 } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 const SPECIALIZED_STAFF = [
   { domain: 'IT Support', email: 'it.staff@svec.edu.in' },

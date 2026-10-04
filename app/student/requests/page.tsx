@@ -18,7 +18,7 @@ import { LoadingState } from '@/components/ui/LoadingState'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DemoRequest } from '@/lib/demo/types'
 
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 
 export default function RequestList() {
   const [requests, setRequests] = useState<DemoRequest[]>([])

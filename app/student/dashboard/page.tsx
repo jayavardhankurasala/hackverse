@@ -22,7 +22,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { getCurrentDemoUser, getStudentRequests } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser } from '@/lib/demo/types'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { getTimeGreeting } from '@/lib/utils/greeting'
 
 export default function StudentDashboard() {

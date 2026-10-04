@@ -245,7 +245,7 @@ export default function NewRequestPage() {
         } catch {}
       }
 
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { GraduationCap, Wrench, ShieldCheck, LogOut, Camera, Loader2 } from 'lucide-react'
 import { logout, updateAvatarUrl } from '@/actions/auth'
 import { getCurrentDemoUser } from '@/lib/demo/demo-service'

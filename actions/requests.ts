@@ -67,21 +67,30 @@ export async function createServiceRequest(formData: FormData) {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const admin = createAdminClient()
-    const { data: todayTickets } = await admin
-      .from('service_requests')
-      .select('ticket_number')
-      .ilike('ticket_number', `${datePrefix}-%`)
+    const { data: atomicToken, error: rpcError } = await admin.rpc('get_next_ticket_number', {
+      p_date_prefix: datePrefix,
+    })
 
-    if (todayTickets && todayTickets.length > 0) {
-      let maxSeq = 0
-      for (const t of todayTickets) {
-        const parts = t.ticket_number.split('-')
-        const seq = parseInt(parts[parts.length - 1], 10)
-        if (!isNaN(seq) && seq > maxSeq) {
-          maxSeq = seq
+    if (!rpcError && atomicToken) {
+      ticketNumber = atomicToken
+    } else {
+      // Fallback query if RPC unavailable
+      const { data: todayTickets } = await admin
+        .from('service_requests')
+        .select('ticket_number')
+        .ilike('ticket_number', `${datePrefix}-%`)
+
+      if (todayTickets && todayTickets.length > 0) {
+        let maxSeq = 0
+        for (const t of todayTickets) {
+          const parts = t.ticket_number.split('-')
+          const seq = parseInt(parts[parts.length - 1], 10)
+          if (!isNaN(seq) && seq > maxSeq) {
+            maxSeq = seq
+          }
         }
+        ticketNumber = `${datePrefix}-${maxSeq + 1}`
       }
-      ticketNumber = `${datePrefix}-${maxSeq + 1}`
     }
   } catch {
     ticketNumber = `${datePrefix}-${Math.floor(100 + Math.random() * 900)}`

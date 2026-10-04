@@ -38,7 +38,7 @@ import {
   resolveDemoRequest,
 } from '@/lib/demo/demo-service'
 import { DemoRequest, DemoUser, ServiceCategory } from '@/lib/demo/types'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { getTimeGreeting } from '@/lib/utils/greeting'
 
 const DOMAINS: string[] = [

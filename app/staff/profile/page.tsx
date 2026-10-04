@@ -19,7 +19,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { DEMO_USERS } from '@/lib/demo/mock-data'
 import { getCurrentDemoUser, getStaffAssignedRequests } from '@/lib/demo/demo-service'
 
